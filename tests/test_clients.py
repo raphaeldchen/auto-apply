@@ -31,3 +31,15 @@ def test_lever_parses_jobs():
     assert jobs[0].location == "Remote"
     assert jobs[0].url == "https://jobs.lever.co/stripe/abc123-def456"
     assert "senior engineer" in jobs[0].description
+
+def test_ashby_parses_jobs():
+    json_data = {"jobs": [{"id": "xyz-789", "title": "Senior Software Engineer", "locationName": "New York", "jobUrl": "https://jobs.ashbyhq.com/stripe/xyz-789", "descriptionHtml": "<p>We are looking for talent.</p>"}]}
+    with patch("pipeline.discovery.clients.ashby.httpx.get", return_value=_mock_get(200, json_data)):
+        from pipeline.discovery.clients.ashby import fetch_jobs
+        jobs = fetch_jobs("stripe")
+    assert len(jobs) == 1
+    assert jobs[0].id == "xyz-789"
+    assert jobs[0].title == "Senior Software Engineer"
+    assert jobs[0].location == "New York"
+    assert jobs[0].url == "https://jobs.ashbyhq.com/stripe/xyz-789"
+    assert "<p>" in jobs[0].description
