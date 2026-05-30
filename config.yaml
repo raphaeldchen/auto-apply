@@ -1,0 +1,13 @@
+user:
+  desired_role: "Software Engineer"
+  desired_level: "Senior"
+  resume_path: "./resume.pdf"
+
+filter:
+  include_patterns: ["software engineer", "swe", "backend engineer"]
+  exclude_patterns: ["intern", "manager", "director", "vp", "head of"]
+  level_patterns: ["senior", "l4", "l5", "sr.", "ic4", "ic5"]
+  llm_score_threshold: 7.0
+
+notifications:
+  type: "terminal"
