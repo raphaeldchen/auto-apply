@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     filter_status  TEXT    NOT NULL DEFAULT 'new',
     llm_score      REAL,
     llm_reason     TEXT,
+    kw_reason      TEXT,
     PRIMARY KEY (id, company_id)
 );
 

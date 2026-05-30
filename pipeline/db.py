@@ -67,10 +67,11 @@ def update_job_filter_status(
     status: str,
     llm_score: float | None = None,
     llm_reason: str | None = None,
+    kw_reason: str | None = None,
 ) -> None:
     conn.execute(
-        "UPDATE jobs SET filter_status=?, llm_score=?, llm_reason=? WHERE id=? AND company_id=?",
-        (status, llm_score, llm_reason, job_id, company_id),
+        "UPDATE jobs SET filter_status=?, llm_score=?, llm_reason=?, kw_reason=? WHERE id=? AND company_id=?",
+        (status, llm_score, llm_reason, kw_reason, job_id, company_id),
     )
     conn.commit()
 
@@ -78,7 +79,7 @@ def update_job_filter_status(
 def get_matched_jobs(conn: sqlite3.Connection, days: int = 7) -> list[tuple[Job, Company]]:
     rows = conn.execute(
         """SELECT j.id as job_id, j.company_id, j.title, j.url, j.location, j.description,
-                  j.first_seen_at, j.filter_status, j.llm_score, j.llm_reason,
+                  j.first_seen_at, j.filter_status, j.llm_score, j.llm_reason, j.kw_reason,
                   c.id as company_db_id, c.name as company_name, c.slug as company_slug,
                   c.ats_type, c.board_token, c.status as company_status,
                   c.detected_at as company_detected_at
@@ -113,4 +114,5 @@ def _row_to_job(row: sqlite3.Row) -> Job:
         url=row["url"], location=row["location"], description=row["description"],
         first_seen_at=row["first_seen_at"], filter_status=row["filter_status"],
         llm_score=row["llm_score"], llm_reason=row["llm_reason"],
+        kw_reason=row["kw_reason"],
     )

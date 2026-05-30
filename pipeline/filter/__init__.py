@@ -10,9 +10,11 @@ def filter_jobs(
 ) -> tuple[list[Job], list[Job], list[Job]]:
     matched, kw_filtered, llm_filtered = [], [], []
     for job in jobs:
-        if not keyword_filter(job, config.filter):
-            update_job_filter_status(conn, job.id, job.company_id, "kw_filtered")
+        kw_reason = keyword_filter(job, config.filter)
+        if kw_reason is not None:
+            update_job_filter_status(conn, job.id, job.company_id, "kw_filtered", kw_reason=kw_reason)
             job.filter_status = "kw_filtered"
+            job.kw_reason = kw_reason
             kw_filtered.append(job)
             continue
         score, reason = score_job(job, config.user)

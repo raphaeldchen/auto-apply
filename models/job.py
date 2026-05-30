@@ -23,3 +23,4 @@ class Job:
     filter_status: str = "new"
     llm_score: float | None = None
     llm_reason: str | None = None
+    kw_reason: str | None = None

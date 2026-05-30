@@ -11,19 +11,22 @@ def _config(**overrides) -> FilterConfig:
     return FilterConfig(**defaults)
 
 def test_matching_include_pattern_passes():
-    assert keyword_filter(_job("Senior Software Engineer"), _config()) is True
+    assert keyword_filter(_job("Senior Software Engineer"), _config()) is None
 
 def test_no_include_match_fails():
-    assert keyword_filter(_job("Product Manager"), _config()) is False
+    assert keyword_filter(_job("Product Manager"), _config()) is not None
 
 def test_exclude_pattern_rejects():
-    assert keyword_filter(_job("Software Engineer Intern"), _config()) is False
+    assert keyword_filter(_job("Software Engineer Intern"), _config()) is not None
 
 def test_no_level_match_fails_when_level_patterns_set():
-    assert keyword_filter(_job("Software Engineer"), _config()) is False
+    assert keyword_filter(_job("Software Engineer"), _config()) is not None
 
 def test_empty_level_patterns_allows_any_level():
-    assert keyword_filter(_job("Software Engineer"), _config(level_patterns=[])) is True
+    assert keyword_filter(_job("Software Engineer"), _config(level_patterns=[])) is None
 
 def test_case_insensitive_matching():
-    assert keyword_filter(_job("SENIOR SOFTWARE ENGINEER"), _config()) is True
+    assert keyword_filter(_job("SENIOR SOFTWARE ENGINEER"), _config()) is None
+
+def test_exclude_reason_contains_pattern():
+    assert "intern" in keyword_filter(_job("Software Engineer Intern"), _config())

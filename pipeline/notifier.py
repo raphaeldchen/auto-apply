@@ -9,7 +9,8 @@ def format_digest(result: DigestResult) -> str:
             score = f"{job.llm_score:.1f}" if job.llm_score is not None else "N/A"
             lines.append(f'  ✓ {job.title} — score {score} — "{job.llm_reason}"')
         for job in cd.kw_filtered:
-            lines.append(f"  ✗ [kw_filtered] {job.title}")
+            reason = f" — {job.kw_reason}" if job.kw_reason else ""
+            lines.append(f"  ✗ [kw_filtered] {job.title}{reason}")
         for job in cd.llm_filtered:
             score = f"{job.llm_score:.1f}" if job.llm_score is not None else "N/A"
             lines.append(f"  ✗ [llm_filtered] {job.title} — score {score}")
