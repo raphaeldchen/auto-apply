@@ -9,6 +9,7 @@ def init_db(db_path: str = "auto_apply.db") -> sqlite3.Connection:
     schema = (Path(__file__).parent.parent / "db" / "schema.sql").read_text()
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(schema)
     conn.commit()
     return conn
@@ -23,7 +24,7 @@ def upsert_company(conn: sqlite3.Connection, company: Company) -> Company:
              ats_type=excluded.ats_type,
              board_token=excluded.board_token,
              status=excluded.status,
-             detected_at=excluded.detected_at""",
+             detected_at=COALESCE(companies.detected_at, excluded.detected_at)""",
         (company.name, company.slug, company.ats_type, company.board_token,
          company.status, datetime.now().isoformat()),
     )
@@ -79,7 +80,8 @@ def get_matched_jobs(conn: sqlite3.Connection, days: int = 7) -> list[tuple[Job,
         """SELECT j.id as job_id, j.company_id, j.title, j.url, j.location, j.description,
                   j.first_seen_at, j.filter_status, j.llm_score, j.llm_reason,
                   c.id as company_db_id, c.name as company_name, c.slug as company_slug,
-                  c.ats_type, c.board_token, c.status as company_status
+                  c.ats_type, c.board_token, c.status as company_status,
+                  c.detected_at as company_detected_at
            FROM jobs j JOIN companies c ON j.company_id = c.id
            WHERE j.filter_status = 'matched'
              AND j.first_seen_at >= datetime('now', ?)
@@ -93,6 +95,7 @@ def _row_to_company(row: sqlite3.Row) -> Company:
     return Company(
         id=row["id"], name=row["name"], slug=row["slug"],
         ats_type=row["ats_type"], board_token=row["board_token"], status=row["status"],
+        detected_at=row["detected_at"],
     )
 
 
@@ -100,6 +103,7 @@ def _row_to_company_from_join(row: sqlite3.Row) -> Company:
     return Company(
         id=row["company_db_id"], name=row["company_name"], slug=row["company_slug"],
         ats_type=row["ats_type"], board_token=row["board_token"], status=row["company_status"],
+        detected_at=row["company_detected_at"],
     )
 
 
