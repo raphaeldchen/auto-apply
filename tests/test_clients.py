@@ -19,3 +19,15 @@ def test_greenhouse_parses_jobs():
     assert jobs[0].location == "San Francisco"
     assert jobs[0].url == "https://boards.greenhouse.io/stripe/jobs/12345"
     assert "<p>" in jobs[0].description
+
+def test_lever_parses_jobs():
+    json_data = [{"id": "abc123-def456", "text": "Senior Software Engineer", "categories": {"location": "Remote"}, "hostedUrl": "https://jobs.lever.co/stripe/abc123-def456", "descriptionPlain": "We are looking for a senior engineer..."}]
+    with patch("pipeline.discovery.clients.lever.httpx.get", return_value=_mock_get(200, json_data)):
+        from pipeline.discovery.clients.lever import fetch_jobs
+        jobs = fetch_jobs("stripe")
+    assert len(jobs) == 1
+    assert jobs[0].id == "abc123-def456"
+    assert jobs[0].title == "Senior Software Engineer"
+    assert jobs[0].location == "Remote"
+    assert jobs[0].url == "https://jobs.lever.co/stripe/abc123-def456"
+    assert "senior engineer" in jobs[0].description
