@@ -22,3 +22,10 @@ def test_add_company_without_ats_type_calls_detection(db_conn):
         result = runner.invoke(cli, ["add-company", "--name", "Stripe"])
     mock_detect.assert_called_once()
     assert result.exit_code == 0
+
+
+def test_add_company_ats_type_without_slug_errors():
+    runner = CliRunner()
+    result = runner.invoke(cli, ["add-company", "--name", "Stripe", "--ats-type", "workday"])
+    assert result.exit_code != 0
+    assert "slug" in result.output.lower()

@@ -21,6 +21,8 @@ def cli():
 @click.option("--ats-type", "ats_type", default=None, help="Skip detection and use this ATS type (e.g. workday)")
 def add_company(name, slug, ats_type):
     """Detect and register a company's ATS."""
+    if ats_type and not slug:
+        raise click.UsageError("--slug is required when --ats-type is set")
     conn = init_db(DB_PATH)
     try:
         if ats_type and slug:
