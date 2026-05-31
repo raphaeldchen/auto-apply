@@ -1,8 +1,39 @@
+import asyncio
 import httpx
 from models.job import RawJob
 
 WORKDAY_URL = "https://{subdomain}.myworkdayjobs.com/wday/cxs/{subdomain}/{board}/jobs"
+WORKDAY_VERSIONS = ["wd5", "wd3", "wd1", "wd2"]
+WORKDAY_BOARD_NAMES = ["ExternalCareerSite", "External", "Careers", "externalsite"]
 _LIMIT = 20
+
+
+async def _probe_board(client: httpx.AsyncClient, subdomain: str, board: str) -> tuple[str, str] | None:
+    url = WORKDAY_URL.format(subdomain=subdomain, board=board)
+    try:
+        response = await client.post(
+            url,
+            json={"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            return ("workday", f"{subdomain}/{board}")
+    except httpx.RequestError:
+        pass
+    return None
+
+
+async def probe_workday(client: httpx.AsyncClient, slug: str) -> tuple[str, str] | None:
+    tasks = [
+        _probe_board(client, f"{slug}.{version}", board)
+        for version in WORKDAY_VERSIONS
+        for board in WORKDAY_BOARD_NAMES
+    ]
+    results = await asyncio.gather(*tasks)
+    for result in results:
+        if result is not None:
+            return result
+    return None
 
 
 def fetch_jobs(board_token: str) -> list[RawJob]:

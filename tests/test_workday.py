@@ -1,4 +1,4 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 
 def _mock_post(json_data):
@@ -57,3 +57,35 @@ def test_workday_paginates():
 def test_workday_registered_in_client_map():
     from pipeline.discovery.poller import _CLIENT_MAP
     assert "workday" in _CLIENT_MAP
+
+
+async def test_probe_workday_finds_board():
+    async def mock_post(url, **kwargs):
+        r = MagicMock()
+        r.status_code = 200 if "stripe.wd5" in url and "ExternalCareerSite" in url else 404
+        return r
+
+    mock_client = AsyncMock()
+    mock_client.post = mock_post
+
+    from pipeline.discovery.clients.workday import probe_workday
+    result = await probe_workday(mock_client, "stripe")
+
+    assert result is not None
+    assert result[0] == "workday"
+    assert result[1] == "stripe.wd5/ExternalCareerSite"
+
+
+async def test_probe_workday_returns_none_when_no_match():
+    async def mock_post(url, **kwargs):
+        r = MagicMock()
+        r.status_code = 404
+        return r
+
+    mock_client = AsyncMock()
+    mock_client.post = mock_post
+
+    from pipeline.discovery.clients.workday import probe_workday
+    result = await probe_workday(mock_client, "unknowncorp")
+
+    assert result is None
