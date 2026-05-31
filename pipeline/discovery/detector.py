@@ -4,6 +4,7 @@ import httpx
 from pipeline.discovery.clients.greenhouse import GREENHOUSE_URL
 from pipeline.discovery.clients.lever import LEVER_URL
 from pipeline.discovery.clients.ashby import ASHBY_URL
+from pipeline.discovery.clients.workday import probe_workday
 
 _ATS_PROBE_URLS = {
     "greenhouse": GREENHOUSE_URL,
@@ -42,7 +43,11 @@ async def detect_ats(name: str, slug_override: str | None = None) -> tuple[str, 
             for ats_type in _ATS_PROBE_URLS
         ]
         results = await asyncio.gather(*tasks)
-    for result in results:
-        if result is not None:
-            return result
+        for result in results:
+            if result is not None:
+                return result
+        for slug in slugs:
+            result = await probe_workday(client, slug)
+            if result is not None:
+                return result
     return None
