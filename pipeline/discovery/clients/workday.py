@@ -1,68 +1,27 @@
-import asyncio
-import httpx
+from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 from models.job import RawJob
 
-WORKDAY_URL = "https://{subdomain}.myworkdayjobs.com/wday/cxs/{subdomain}/{board}/jobs"
 WORKDAY_VERSIONS = ["wd5", "wd3", "wd1", "wd2"]
-WORKDAY_BOARD_NAMES = ["ExternalCareerSite", "External", "Careers", "externalsite"]
-_LIMIT = 20
+WORKDAY_BOARD_NAMES = ["ExternalCareerSite", "External", "Careers", "externalsite", "Workday"]
 
 
-async def _probe_board(client: httpx.AsyncClient, subdomain: str, board: str) -> tuple[str, str] | None:
-    url = WORKDAY_URL.format(subdomain=subdomain, board=board)
-    try:
-        response = await client.post(
-            url,
-            json={"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""},
-            timeout=10,
+def _parse_jobs(data: dict, base_url: str) -> list[RawJob]:
+    return [
+        RawJob(
+            id=posting["externalPath"],
+            title=posting["title"],
+            url=base_url + posting["externalPath"],
+            location=posting.get("locationsText"),
+            description=None,
         )
-        if response.status_code == 200:
-            return ("workday", f"{subdomain}/{board}")
-    except httpx.RequestError:
-        pass
-    return None
-
-
-async def probe_workday(client: httpx.AsyncClient, slug: str) -> tuple[str, str] | None:
-    tasks = [
-        _probe_board(client, f"{slug}.{version}", board)
-        for version in WORKDAY_VERSIONS
-        for board in WORKDAY_BOARD_NAMES
+        for posting in data.get("jobPostings", [])
     ]
-    results = await asyncio.gather(*tasks)
-    for result in results:
-        if result is not None:
-            return result
-    return None
 
 
 def fetch_jobs(board_token: str) -> list[RawJob]:
-    subdomain, board = board_token.split("/", 1)
-    url = WORKDAY_URL.format(subdomain=subdomain, board=board)
-    base_url = f"https://{subdomain}.myworkdayjobs.com"
-    jobs = []
-    offset = 0
-    while True:
-        response = httpx.post(
-            url,
-            json={"appliedFacets": {}, "limit": _LIMIT, "offset": offset, "searchText": ""},
-            timeout=15,
-        )
-        response.raise_for_status()
-        data = response.json()
-        total = data.get("total", 0)
-        for posting in data.get("jobPostings", []):
-            path = posting["externalPath"]
-            jobs.append(
-                RawJob(
-                    id=path,
-                    title=posting["title"],
-                    url=base_url + path,
-                    location=posting.get("locationsText"),
-                    description=None,
-                )
-            )
-        offset += _LIMIT
-        if offset >= total:
-            break
-    return jobs
+    raise NotImplementedError("Playwright fetch_jobs — implemented in Task 3")
+
+
+async def probe_workday(slug: str) -> tuple[str, str] | None:
+    raise NotImplementedError("Playwright probe_workday — implemented in Task 4")
