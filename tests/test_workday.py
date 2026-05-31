@@ -29,3 +29,26 @@ def test_workday_parses_jobs():
     assert jobs[0].location == "Remote"
     assert jobs[0].url == "https://stripe.wd5.myworkdayjobs.com/en-US/ExternalCareerSite/job/Remote/Senior-ML-Engineer_JR-001"
     assert jobs[0].description is None
+
+
+def test_workday_paginates():
+    def _posting(n):
+        return {
+            "externalPath": f"/en-US/Board/job/Remote/Job-{n}_JR-{n:03d}",
+            "title": f"Job {n}",
+            "locationsText": "Remote",
+        }
+
+    page1 = {"total": 22, "jobPostings": [_posting(i) for i in range(20)]}
+    page2 = {"total": 22, "jobPostings": [_posting(i) for i in range(20, 22)]}
+
+    with patch(
+        "pipeline.discovery.clients.workday.httpx.post",
+        side_effect=[_mock_post(page1), _mock_post(page2)],
+    ):
+        from pipeline.discovery.clients.workday import fetch_jobs
+        jobs = fetch_jobs("company.wd5/Board")
+
+    assert len(jobs) == 22
+    assert jobs[0].id == "/en-US/Board/job/Remote/Job-0_JR-000"
+    assert jobs[21].id == "/en-US/Board/job/Remote/Job-21_JR-021"
