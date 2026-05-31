@@ -1,0 +1,137 @@
+<h2>Stage 1 — Discovery Layer Detail</h2>
+<p class="subtitle">How companies get registered and how new jobs are detected each day.</p>
+
+<div style="display: flex; flex-direction: column; gap: 20px; margin-top: 20px;">
+
+  <!-- Setup flow -->
+  <div class="section">
+    <h3>One-time Setup: ATS Auto-Detection</h3>
+    <p style="color: var(--muted,#888); font-size: 0.9em; margin-bottom: 12px;">
+      When the user runs <code>python main.py add-company --name "Stripe" --slug stripe</code>, the detector probes all 3 ATSes in parallel and stores the result.
+    </p>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <div style="background: rgba(124,106,247,0.15); border-radius: 6px; padding: 10px 14px; font-size: 0.85em; text-align:center;">
+        <div style="font-weight:600;">User input</div>
+        <div style="color:var(--muted,#888); margin-top:3px;">name + slug</div>
+      </div>
+      <div style="color:var(--muted,#888);">→</div>
+      <div style="background: rgba(124,106,247,0.15); border-radius: 6px; padding: 10px 14px; font-size: 0.85em; text-align:center;">
+        <div style="font-weight:600;">Probe in parallel</div>
+        <div style="color:var(--muted,#888); margin-top:3px;">Greenhouse · Lever · Ashby<br><span style="font-size:0.85em;">boards-api.greenhouse.io<br>api.lever.co<br>api.ashbyhq.com</span></div>
+      </div>
+      <div style="color:var(--muted,#888);">→</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="background: rgba(93,200,100,0.15); border: 1px solid rgba(93,200,100,0.3); border-radius: 6px; padding: 8px 14px; font-size: 0.85em;">
+          <span style="color:#5dc864;">✓ 200 OK</span> → save company + ATS type to SQLite
+        </div>
+        <div style="background: rgba(220,80,80,0.1); border: 1px solid rgba(220,80,80,0.3); border-radius: 6px; padding: 8px 14px; font-size: 0.85em;">
+          <span style="color:#dc5050;">✗ All 404</span> → flag as unsupported, skip in daily run
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily run -->
+  <div class="section">
+    <h3>Daily Run: New Job Detection</h3>
+    <p style="color: var(--muted,#888); font-size: 0.9em; margin-bottom: 12px;">
+      For each active company, fetch the full current job list from its ATS, diff against seen IDs in SQLite, emit only new ones downstream.
+    </p>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <div style="background: rgba(124,106,247,0.15); border-radius: 6px; padding: 10px 14px; font-size: 0.85em; text-align:center;">
+        <div style="font-weight:600;">Fetch current jobs</div>
+        <div style="color:var(--muted,#888); margin-top:3px;">ATS API → list of<br>{id, title, url, location}</div>
+      </div>
+      <div style="color:var(--muted,#888);">→</div>
+      <div style="background: rgba(124,106,247,0.15); border-radius: 6px; padding: 10px 14px; font-size: 0.85em; text-align:center;">
+        <div style="font-weight:600;">Diff vs. seen_jobs</div>
+        <div style="color:var(--muted,#888); margin-top:3px;">SQLite set lookup<br>O(1) per job</div>
+      </div>
+      <div style="color:var(--muted,#888);">→</div>
+      <div style="background: rgba(124,106,247,0.15); border-radius: 6px; padding: 10px 14px; font-size: 0.85em; text-align:center;">
+        <div style="font-weight:600;">Mark all as seen</div>
+        <div style="color:var(--muted,#888); margin-top:3px;">Upsert full list<br>so removals are tracked</div>
+      </div>
+      <div style="color:var(--muted,#888);">→</div>
+      <div style="background: rgba(93,200,100,0.15); border: 1px solid rgba(93,200,100,0.3); border-radius: 6px; padding: 10px 14px; font-size: 0.85em; text-align:center;">
+        <div style="font-weight:600;">Emit new jobs</div>
+        <div style="color:var(--muted,#888); margin-top:3px;">Pass to Stage 2<br>(Filter)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ATS API cheat sheet -->
+  <div class="section">
+    <h3>ATS Public API Endpoints</h3>
+    <table style="width:100%; border-collapse:collapse; font-size:0.85em;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border,#333);">
+          <th style="padding:8px 12px; text-align:left; color:var(--muted,#888);">ATS</th>
+          <th style="padding:8px 12px; text-align:left; color:var(--muted,#888);">Detection probe</th>
+          <th style="padding:8px 12px; text-align:left; color:var(--muted,#888);">Auth</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <td style="padding:8px 12px; font-weight:600;">Greenhouse</td>
+          <td style="padding:8px 12px; font-family:monospace; color:var(--muted,#888);">boards-api.greenhouse.io/v1/boards/{slug}/jobs</td>
+          <td style="padding:8px 12px; color:#5dc864;">None — public</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <td style="padding:8px 12px; font-weight:600;">Lever</td>
+          <td style="padding:8px 12px; font-family:monospace; color:var(--muted,#888);">api.lever.co/v0/postings/{slug}</td>
+          <td style="padding:8px 12px; color:#5dc864;">None — public</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px; font-weight:600;">Ashby</td>
+          <td style="padding:8px 12px; font-family:monospace; color:var(--muted,#888);">api.ashbyhq.com/posting-api/job-board/{slug}</td>
+          <td style="padding:8px 12px; color:#5dc864;">None — public</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SQLite schema -->
+  <div class="section">
+    <h3>SQLite Schema</h3>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      <div style="flex:1; min-width:180px; background: rgba(124,106,247,0.1); border-radius: 6px; padding: 12px 14px;">
+        <div style="font-weight:600; margin-bottom:8px;">companies</div>
+        <div style="font-family:monospace; font-size:0.8em; color:var(--muted,#888); line-height:1.7em;">
+          id INTEGER PK<br>
+          name TEXT<br>
+          slug TEXT<br>
+          ats_type TEXT<br>
+          board_token TEXT<br>
+          status TEXT<br>
+          &nbsp;&nbsp;<span style="color:#888;">── active | unsupported</span>
+        </div>
+      </div>
+      <div style="flex:1; min-width:200px; background: rgba(93,173,226,0.1); border-radius: 6px; padding: 12px 14px;">
+        <div style="font-weight:600; margin-bottom:8px;">jobs</div>
+        <div style="font-family:monospace; font-size:0.8em; color:var(--muted,#888); line-height:1.7em;">
+          id TEXT<br>
+          company_id INTEGER FK<br>
+          title TEXT<br>
+          url TEXT<br>
+          location TEXT<br>
+          description TEXT<br>
+          first_seen_at TIMESTAMP<br>
+          filter_status TEXT<br>
+          &nbsp;&nbsp;<span style="color:#888;">── new | kw_filtered | matched</span><br>
+          llm_score REAL
+        </div>
+      </div>
+      <div style="flex:1; min-width:180px; background: rgba(80,80,80,0.15); border-radius: 6px; padding: 12px 14px; opacity:0.7;">
+        <div style="font-weight:600; margin-bottom:8px; color:var(--muted,#888);">applications <span style="font-size:0.8em;">(future)</span></div>
+        <div style="font-family:monospace; font-size:0.8em; color:var(--muted,#888); line-height:1.7em;">
+          id INTEGER PK<br>
+          job_id TEXT FK<br>
+          applied_at TIMESTAMP<br>
+          status TEXT
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,12 @@
+pyproject.toml
+auto_apply.egg-info/PKG-INFO
+auto_apply.egg-info/SOURCES.txt
+auto_apply.egg-info/dependency_links.txt
+auto_apply.egg-info/requires.txt
+auto_apply.egg-info/top_level.txt
+db/__init__.py
+models/__init__.py
+pipeline/__init__.py
+pipeline/discovery/__init__.py
+pipeline/discovery/clients/__init__.py
+pipeline/filter/__init__.py

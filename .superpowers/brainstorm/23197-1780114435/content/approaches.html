@@ -1,0 +1,67 @@
+<h2>Discovery System: 3 Approaches</h2>
+<p class="subtitle">How should the overall agent be structured? This choice shapes the whole project.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>CLI script + cron + SQLite</h3>
+      <p>A single Python script you run manually or schedule via macOS cron. SQLite stores seen job IDs. Outputs a list of new matches to stdout or a file.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Zero infrastructure — just a file</li>
+          <li>Easy to read and debug</li>
+          <li>No background process needed</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Cron setup is manual</li>
+          <li>Hard to extend into auto-apply later</li>
+          <li>No internal orchestration between steps</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Python daemon + APScheduler + SQLite</h3>
+      <p>A long-running Python process with a built-in daily scheduler. Runs in the background, checks ATSes, filters matches, and notifies you (stdout / email / Slack).</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Fully automated — no cron config</li>
+          <li>Easy to add notifications</li>
+          <li>Straightforward to reason about</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Must stay running (or use launchd)</li>
+          <li>Still ad hoc — adding apply step means more custom glue</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option recommended" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Modular agent pipeline ★ Recommended</h3>
+      <p>Discrete pipeline stages: <strong>discover → filter → tailor → apply</strong>. Each stage is an independent module. A lightweight scheduler triggers the daily run. SQLite tracks state across runs.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Each stage is independently testable</li>
+          <li>Resume tailoring and auto-apply slot in naturally</li>
+          <li>Clean separation between discovery and action</li>
+          <li>Easy to add/swap ATS clients without touching the rest</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>More upfront structure than a script</li>
+          <li>Slightly more files to navigate</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.option.recommended { border-left: 3px solid var(--accent, #7c6af7); }
+</style>

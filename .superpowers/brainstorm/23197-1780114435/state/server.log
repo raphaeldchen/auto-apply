@@ -1,0 +1,8 @@
+{"type":"server-started","port":56953,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:56953","screen_dir":"/Users/raphaelchen/Desktop/auto-apply/.superpowers/brainstorm/23197-1780114435/content","state_dir":"/Users/raphaelchen/Desktop/auto-apply/.superpowers/brainstorm/23197-1780114435/state"}
+{"type":"screen-added","file":"/Users/raphaelchen/Desktop/auto-apply/.superpowers/brainstorm/23197-1780114435/content/waiting.html"}
+{"type":"screen-added","file":"/Users/raphaelchen/Desktop/auto-apply/.superpowers/brainstorm/23197-1780114435/content/approaches.html"}
+{"source":"user-event","type":"click","text":"C\n    \n      Modular agent pipeline ★ Recommended\n      Discrete pipeline stages: discover → filter → tailor → apply. Each stage is an independent module. A lightweight scheduler triggers the daily run. SQLite tracks state across runs.\n      \n        Pros\n          Each stage is independently testable\n          Resume tailoring and auto-apply slot in naturally\n          Clean separation between discovery and action\n          Easy to add/swap ATS clients without touching the rest\n        \n        Cons\n          More upfront structure than a script\n          Slightly more files to navigate","choice":"c","id":null,"timestamp":1780115038527}
+{"type":"screen-added","file":"/Users/raphaelchen/Desktop/auto-apply/.superpowers/brainstorm/23197-1780114435/content/architecture.html"}
+{"type":"screen-added","file":"/Users/raphaelchen/Desktop/auto-apply/.superpowers/brainstorm/23197-1780114435/content/discovery-detail.html"}
+{"type":"screen-added","file":"/Users/raphaelchen/Desktop/auto-apply/.superpowers/brainstorm/23197-1780114435/content/filter-detail.html"}
+{"type":"server-stopped","reason":"idle timeout"}

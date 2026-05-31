@@ -1,0 +1,80 @@
+<h2>System Architecture</h2>
+<p class="subtitle">Four pipeline stages — stages 3 & 4 are future work, designed as plug-in slots from the start.</p>
+
+<div style="display: flex; flex-direction: column; gap: 12px; margin-top: 24px;">
+
+  <!-- Scheduler -->
+  <div style="background: var(--surface, #1e1e2e); border: 1px solid var(--border, #333); border-radius: 8px; padding: 14px 20px; text-align: center;">
+    <span class="label">Trigger</span>
+    <div style="font-size: 1.1em; font-weight: 600; margin-top: 4px;">⏰ Daily Scheduler</div>
+    <div style="color: var(--muted, #888); font-size: 0.85em; margin-top: 4px;">APScheduler — fires once per day, kicks off the pipeline</div>
+  </div>
+
+  <div style="text-align:center; color: var(--muted, #888); font-size: 1.4em;">↓</div>
+
+  <!-- Stage 1 -->
+  <div style="background: var(--surface, #1e1e2e); border: 2px solid #7c6af7; border-radius: 8px; padding: 14px 20px;">
+    <span class="label" style="color:#7c6af7;">Stage 1 — Discovery</span>
+    <div style="font-size: 1.1em; font-weight: 600; margin-top: 4px;">ATS Poller</div>
+    <div style="display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
+      <div style="flex:1; min-width:140px; background: rgba(124,106,247,0.1); border-radius: 6px; padding: 10px 12px;">
+        <div style="font-weight:600; font-size:0.9em;">ATS Clients</div>
+        <div style="color: var(--muted, #888); font-size: 0.8em; margin-top: 4px;">Greenhouse · Lever · Ashby<br>Public job board APIs</div>
+      </div>
+      <div style="flex:1; min-width:140px; background: rgba(124,106,247,0.1); border-radius: 6px; padding: 10px 12px;">
+        <div style="font-weight:600; font-size:0.9em;">Auto-Detector</div>
+        <div style="color: var(--muted, #888); font-size: 0.8em; margin-top: 4px;">Probes all 3 APIs at setup<br>Persists company → ATS mapping</div>
+      </div>
+      <div style="flex:1; min-width:140px; background: rgba(124,106,247,0.1); border-radius: 6px; padding: 10px 12px;">
+        <div style="font-weight:600; font-size:0.9em;">Job Store</div>
+        <div style="color: var(--muted, #888); font-size: 0.8em; margin-top: 4px;">SQLite — seen job IDs<br>Emits only new postings</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center; color: var(--muted, #888); font-size: 1.4em;">↓ new postings</div>
+
+  <!-- Stage 2 -->
+  <div style="background: var(--surface, #1e1e2e); border: 2px solid #5dade2; border-radius: 8px; padding: 14px 20px;">
+    <span class="label" style="color:#5dade2;">Stage 2 — Filter</span>
+    <div style="font-size: 1.1em; font-weight: 600; margin-top: 4px;">Relevance Pipeline</div>
+    <div style="display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
+      <div style="flex:1; min-width:160px; background: rgba(93,173,226,0.1); border-radius: 6px; padding: 10px 12px;">
+        <div style="font-weight:600; font-size:0.9em;">① Keyword Pre-filter</div>
+        <div style="color: var(--muted, #888); font-size: 0.8em; margin-top: 4px;">Title / level string match<br>Drops obvious mismatches cheaply</div>
+      </div>
+      <div style="flex:1; min-width:160px; background: rgba(93,173,226,0.1); border-radius: 6px; padding: 10px 12px;">
+        <div style="font-weight:600; font-size:0.9em;">② LLM Scorer</div>
+        <div style="color: var(--muted, #888); font-size: 0.8em; margin-top: 4px;">Claude scores relevance 0–10<br>against desired role + level</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center; color: var(--muted, #888); font-size: 1.4em;">↓ matched jobs</div>
+
+  <!-- Stage 3 -->
+  <div style="background: var(--surface, #1e1e2e); border: 2px dashed #888; border-radius: 8px; padding: 14px 20px; opacity: 0.65;">
+    <span class="label" style="color:#888;">Stage 3 — Future</span>
+    <div style="font-size: 1.1em; font-weight: 600; margin-top: 4px; color: var(--muted,#888);">Resume Tailor</div>
+    <div style="color: var(--muted, #888); font-size: 0.85em; margin-top: 6px;">LLM rewrites resume sections to match each job description. Outputs a tailored PDF per application.</div>
+  </div>
+
+  <div style="text-align:center; color: var(--muted, #888); font-size: 1.4em;">↓</div>
+
+  <!-- Stage 4 -->
+  <div style="background: var(--surface, #1e1e2e); border: 2px dashed #888; border-radius: 8px; padding: 14px 20px; opacity: 0.65;">
+    <span class="label" style="color:#888;">Stage 4 — Future</span>
+    <div style="font-size: 1.1em; font-weight: 600; margin-top: 4px; color: var(--muted,#888);">Auto-Apply</div>
+    <div style="color: var(--muted, #888); font-size: 0.85em; margin-top: 6px;">Playwright fills and submits application forms on the ATS. Stores application status in SQLite.</div>
+  </div>
+
+  <div style="text-align:center; color: var(--muted, #888); font-size: 1.4em;">↓</div>
+
+  <!-- Output -->
+  <div style="background: var(--surface, #1e1e2e); border: 1px solid var(--border, #333); border-radius: 8px; padding: 14px 20px; text-align: center;">
+    <span class="label">Output</span>
+    <div style="font-size: 1.1em; font-weight: 600; margin-top: 4px;">Daily Digest Notification</div>
+    <div style="color: var(--muted, #888); font-size: 0.85em; margin-top: 4px;">Terminal summary · Email · (future: Slack)</div>
+  </div>
+
+</div>
