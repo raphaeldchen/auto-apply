@@ -29,5 +29,7 @@ def score_job(job: Job, user_config: UserConfig) -> tuple[float, str]:
         )
         data = json.loads(response.content[0].text)
         return float(data["score"]), str(data["reason"])
+    except anthropic.APIError as e:
+        return 0.0, f"API error: {e}"
     except (json.JSONDecodeError, KeyError):
         return 0.0, "failed to parse LLM response"

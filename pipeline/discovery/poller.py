@@ -17,7 +17,7 @@ def fetch_jobs_for_company(company: Company) -> list[RawJob]:
 def poll_company(company: Company, conn: sqlite3.Connection) -> list[Job]:
     try:
         raw_jobs = fetch_jobs_for_company(company)
-    except httpx.HTTPError as e:
+    except (httpx.HTTPError, KeyError) as e:
         print(f"Failed to fetch jobs for {company.name}: {e}")
         return []
     seen_ids = get_seen_job_ids(conn, company.id)
