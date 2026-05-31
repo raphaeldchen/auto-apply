@@ -54,5 +54,36 @@ def fetch_jobs(board_token: str) -> list[RawJob]:
     return jobs
 
 
+async def _probe_board_playwright(browser, subdomain: str, board: str) -> tuple[str, str] | None:
+    page = await browser.new_page()
+    try:
+        url = f"https://{subdomain}.myworkdayjobs.com/en-US/{board}"
+        try:
+            async with page.expect_response(
+                lambda r: "/wday/cxs/" in r.url and r.url.endswith("/jobs"),
+                timeout=10000,
+            ) as response_info:
+                await page.goto(url, wait_until="domcontentloaded", timeout=10000)
+            resp = await response_info.value
+            if resp.status == 200:
+                return ("workday", f"{subdomain}/{board}")
+        except Exception:
+            pass
+        return None
+    finally:
+        await page.close()
+
+
 async def probe_workday(slug: str) -> tuple[str, str] | None:
-    raise NotImplementedError("Playwright probe_workday — implemented in Task 4")
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            for version in WORKDAY_VERSIONS:
+                subdomain = f"{slug}.{version}"
+                for board in WORKDAY_BOARD_NAMES:
+                    result = await _probe_board_playwright(browser, subdomain, board)
+                    if result is not None:
+                        return result
+        finally:
+            await browser.close()
+    return None

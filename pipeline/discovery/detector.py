@@ -46,8 +46,8 @@ async def detect_ats(name: str, slug_override: str | None = None) -> tuple[str, 
         for result in results:
             if result is not None:
                 return result
-        for slug in slugs:
-            result = await probe_workday(slug)
-            if result is not None:
-                return result
+    for slug in slugs:
+        result = await probe_workday(slug)
+        if result is not None:
+            return result
     return None

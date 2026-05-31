@@ -71,24 +71,18 @@ async def test_detect_ats_uses_slug_override():
 async def test_detect_ats_finds_workday():
     async def mock_get(url, **kwargs):
         r = MagicMock()
-        # Return 404 for all HTTP-based ATS systems
         r.status_code = 404
         return r
 
-    async def async_return(slug):
-        if slug == "stripe":
-            return ("workday", "stripe.wd5/ExternalCareerSite")
-        return None
-
-    with patch("pipeline.discovery.detector.httpx.AsyncClient") as MockClient:
+    with patch("pipeline.discovery.detector.httpx.AsyncClient") as MockClient, \
+         patch("pipeline.discovery.detector.probe_workday",
+               return_value=("workday", "stripe.wd5/ExternalCareerSite")) as mock_probe:
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = mock_get
         MockClient.return_value = mock_client
-        with patch("pipeline.discovery.detector.probe_workday", side_effect=async_return):
-            result = await detect_ats("Stripe")
+        result = await detect_ats("Stripe")
 
-    assert result is not None
-    assert result[0] == "workday"
-    assert result[1] == "stripe.wd5/ExternalCareerSite"
+    assert mock_probe.called
+    assert result == ("workday", "stripe.wd5/ExternalCareerSite")
