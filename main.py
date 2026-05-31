@@ -17,27 +17,37 @@ def cli():
 
 @cli.command()
 @click.option("--name", required=True, help="Company name")
-@click.option("--slug", default=None, help="ATS board slug (optional override)")
-def add_company(name, slug):
+@click.option("--slug", default=None, help="ATS board token (required when --ats-type is set)")
+@click.option("--ats-type", "ats_type", default=None, help="Skip detection and use this ATS type (e.g. workday)")
+def add_company(name, slug, ats_type):
     """Detect and register a company's ATS."""
     conn = init_db(DB_PATH)
     try:
-        result = asyncio.run(detect_ats(name, slug))
-        if result is None:
-            ats_type, board_token, status = None, None, "unsupported"
-            click.echo(f"Could not detect ATS for '{name}'. Try --slug <slug> to specify.")
+        if ats_type and slug:
+            click.echo(f"✓ {name} → {ats_type} (token: {slug})")
+            company = Company(
+                name=name,
+                slug=slug,
+                ats_type=ats_type,
+                board_token=slug,
+                status="active",
+            )
+            upsert_company(conn, company)
         else:
-            ats_type, board_token = result
-            status = "active"
-            click.echo(f"✓ {name} → {ats_type} (token: {board_token})")
-        company = Company(
-            name=name,
-            slug=board_token or name.lower().replace(" ", "-"),
-            ats_type=ats_type,
-            board_token=board_token,
-            status=status,
-        )
-        upsert_company(conn, company)
+            detected = asyncio.run(detect_ats(name, slug))
+            if detected is None:
+                click.echo(f"Could not detect ATS for '{name}'. Try --slug <slug> to specify.")
+                return
+            detected_ats, board_token = detected
+            click.echo(f"✓ {name} → {detected_ats} (token: {board_token})")
+            company = Company(
+                name=name,
+                slug=board_token,
+                ats_type=detected_ats,
+                board_token=board_token,
+                status="active",
+            )
+            upsert_company(conn, company)
     finally:
         conn.close()
 
