@@ -20,7 +20,38 @@ def _parse_jobs(data: dict, base_url: str) -> list[RawJob]:
 
 
 def fetch_jobs(board_token: str) -> list[RawJob]:
-    raise NotImplementedError("Playwright fetch_jobs — implemented in Task 3")
+    subdomain, board = board_token.split("/", 1)
+    base_url = f"https://{subdomain}.myworkdayjobs.com"
+    page_url = f"{base_url}/en-US/{board}"
+    all_data: list[dict] = []
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        def on_response(response):
+            if "/wday/cxs/" in response.url and response.url.endswith("/jobs"):
+                try:
+                    all_data.append(response.json())
+                except Exception:
+                    pass
+
+        page.on("response", on_response)
+        page.goto(page_url, wait_until="networkidle")
+
+        while True:
+            btn = page.query_selector("[data-automation-id='loadMoreButton']")
+            if btn is None or not btn.is_visible():
+                break
+            btn.click()
+            page.wait_for_load_state("networkidle")
+
+        browser.close()
+
+    jobs: list[RawJob] = []
+    for data in all_data:
+        jobs.extend(_parse_jobs(data, base_url))
+    return jobs
 
 
 async def probe_workday(slug: str) -> tuple[str, str] | None:
