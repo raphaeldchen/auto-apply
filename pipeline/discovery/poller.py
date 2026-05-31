@@ -3,12 +3,13 @@ import httpx
 from models.company import Company
 from models.job import Job, RawJob
 from pipeline.db import get_seen_job_ids, upsert_jobs
-from pipeline.discovery.clients import greenhouse, lever, ashby
+from pipeline.discovery.clients import greenhouse, lever, ashby, workday
 
 _CLIENT_MAP = {
     "greenhouse": greenhouse.fetch_jobs,
     "lever": lever.fetch_jobs,
     "ashby": ashby.fetch_jobs,
+    "workday": workday.fetch_jobs,
 }
 
 def fetch_jobs_for_company(company: Company) -> list[RawJob]:

@@ -52,3 +52,8 @@ def test_workday_paginates():
     assert len(jobs) == 22
     assert jobs[0].id == "/en-US/Board/job/Remote/Job-0_JR-000"
     assert jobs[21].id == "/en-US/Board/job/Remote/Job-21_JR-021"
+
+
+def test_workday_registered_in_client_map():
+    from pipeline.discovery.poller import _CLIENT_MAP
+    assert "workday" in _CLIENT_MAP
