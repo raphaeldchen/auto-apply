@@ -23,7 +23,7 @@ def _parse_jobs(data: dict, base_url: str) -> list[RawJob]:
 def fetch_jobs(board_token: str) -> list[RawJob]:
     subdomain, board = board_token.split("/", 1)
     base_url = f"https://{subdomain}.myworkdayjobs.com"
-    page_url = f"{base_url}/en-US/{board}"
+    page_url = f"{base_url}/{board}"
     all_data: list[dict] = []
 
     with sync_playwright() as p:
@@ -55,22 +55,26 @@ def fetch_jobs(board_token: str) -> list[RawJob]:
     return jobs
 
 
-async def _probe_board_playwright(browser, subdomain: str, board: str) -> tuple[str, str] | None:
+async def _probe_version_playwright(browser, subdomain: str) -> tuple[str, str] | None:
     page = await browser.new_page()
     try:
-        url = f"https://{subdomain}.myworkdayjobs.com/en-US/{board}"
         try:
             async with page.expect_response(
-                lambda r: "/wday/cxs/" in r.url and r.url.endswith("/jobs"),
-                timeout=3000,
+                lambda r: "/wday/cxs/" in r.url and r.url.endswith("/jobs") and r.status == 200,
+                timeout=5000,
             ) as response_info:
-                await page.goto(url, wait_until="domcontentloaded", timeout=3000)
+                await page.goto(
+                    f"https://{subdomain}.myworkdayjobs.com/",
+                    wait_until="domcontentloaded",
+                    timeout=5000,
+                )
             resp = await response_info.value
-            if resp.status == 200:
-                return ("workday", f"{subdomain}/{board}")
+            # Extract board token from URL:
+            # https://{subdomain}.myworkdayjobs.com/wday/cxs/{subdomain}/{board}/jobs
+            token = resp.url.split("/wday/cxs/")[-1].removesuffix("/jobs")
+            return ("workday", token)
         except Exception:
-            pass
-        return None
+            return None
     finally:
         await page.close()
 
@@ -79,15 +83,13 @@ async def probe_workday(slug: str) -> tuple[str, str] | None:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         try:
-            for version in WORKDAY_VERSIONS:
-                subdomain = f"{slug}.{version}"
-                results = await asyncio.gather(*[
-                    _probe_board_playwright(browser, subdomain, board)
-                    for board in WORKDAY_BOARD_NAMES
-                ])
-                for result in results:
-                    if result is not None:
-                        return result
+            results = await asyncio.gather(*[
+                _probe_version_playwright(browser, f"{slug}.{version}")
+                for version in WORKDAY_VERSIONS
+            ])
+            for result in results:
+                if result is not None:
+                    return result
         finally:
             await browser.close()
     return None

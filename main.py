@@ -1,5 +1,6 @@
 import asyncio
 import click
+from urllib.parse import urlparse
 from pipeline.config import load_config
 from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs
 from pipeline.discovery.detector import detect_ats
@@ -22,6 +23,13 @@ def cli():
 @click.option("--ats-type", "ats_type", default=None, help="Skip detection and use this ATS type (e.g. workday)")
 def add_company(name, slug, ats_type):
     """Detect and register a company's ATS."""
+    if slug and slug.startswith("https://") and "myworkdayjobs.com" in slug:
+        parsed = urlparse(slug)
+        subdomain = parsed.hostname.replace(".myworkdayjobs.com", "")
+        board = parsed.path.strip("/")
+        slug = f"{subdomain}/{board}"
+        if not ats_type:
+            ats_type = "workday"
     if ats_type and not slug:
         raise click.UsageError("--slug is required when --ats-type is set")
     if ats_type and ats_type not in _CLIENT_MAP:
