@@ -29,3 +29,13 @@ def test_add_company_ats_type_without_slug_errors():
     result = runner.invoke(cli, ["add-company", "--name", "Stripe", "--ats-type", "workday"])
     assert result.exit_code != 0
     assert "slug" in result.output.lower()
+
+
+def test_add_company_unknown_ats_type_errors():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["add-company", "--name", "Foo", "--ats-type", "invalid", "--slug", "foo/Bar"],
+    )
+    assert result.exit_code != 0
+    assert "Unknown ATS type" in result.output or "invalid" in result.output

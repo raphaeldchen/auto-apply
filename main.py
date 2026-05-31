@@ -3,6 +3,7 @@ import click
 from pipeline.config import load_config
 from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs
 from pipeline.discovery.detector import detect_ats
+from pipeline.discovery.poller import _CLIENT_MAP
 from pipeline.runner import run_pipeline
 from pipeline.notifier import print_digest
 from pipeline.scheduler import start_scheduler
@@ -23,6 +24,8 @@ def add_company(name, slug, ats_type):
     """Detect and register a company's ATS."""
     if ats_type and not slug:
         raise click.UsageError("--slug is required when --ats-type is set")
+    if ats_type and ats_type not in _CLIENT_MAP:
+        raise click.UsageError(f"Unknown ATS type '{ats_type}'. Known types: {', '.join(sorted(_CLIENT_MAP))}")
     conn = init_db(DB_PATH)
     try:
         if ats_type and slug:

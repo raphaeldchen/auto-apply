@@ -31,3 +31,22 @@ def test_poll_returns_empty_on_http_error(db_conn):
     with patch("pipeline.discovery.poller.fetch_jobs_for_company", side_effect=httpx.HTTPError("connection refused")):
         new_jobs = poll_company(company, db_conn)
     assert new_jobs == []
+
+
+def test_poll_returns_empty_on_malformed_token(db_conn):
+    company = upsert_company(
+        db_conn,
+        Company(
+            name="BadCo",
+            slug="bad-token-no-slash",
+            ats_type="workday",
+            board_token="bad-token-no-slash",
+            status="active",
+        ),
+    )
+    with patch(
+        "pipeline.discovery.poller.fetch_jobs_for_company",
+        side_effect=ValueError("no slash"),
+    ):
+        new_jobs = poll_company(company, db_conn)
+    assert new_jobs == []
