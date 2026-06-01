@@ -18,8 +18,8 @@ def cli():
     pass
 
 @cli.command()
-@click.option("--name", required=True, help="Company name")
-@click.option("--slug", default=None, help="ATS board token (required when --ats-type is set)")
+@click.option("--name", default=None, help="Company name (derived from URL if omitted)")
+@click.option("--slug", default=None, help="ATS board token or full Workday URL")
 @click.option("--ats-type", "ats_type", default=None, help="Skip detection and use this ATS type (e.g. workday)")
 def add_company(name, slug, ats_type):
     """Detect and register a company's ATS."""
@@ -30,6 +30,12 @@ def add_company(name, slug, ats_type):
         slug = f"{subdomain}/{board}"
         if not ats_type:
             ats_type = "workday"
+        if not name:
+            name = subdomain.split(".")[0].capitalize()
+    if not name and not slug:
+        raise click.UsageError("--name is required when --slug is not a Workday URL")
+    if not name:
+        raise click.UsageError("--name is required")
     if ats_type and not slug:
         raise click.UsageError("--slug is required when --ats-type is set")
     if ats_type and ats_type not in _CLIENT_MAP:
