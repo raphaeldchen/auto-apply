@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import yaml
 
 @dataclass
@@ -15,6 +15,11 @@ class FilterConfig:
     llm_score_threshold: float
 
 @dataclass
+class LLMConfig:
+    model: str
+    base_url: str = "http://localhost:11434"
+
+@dataclass
 class NotificationsConfig:
     type: str
 
@@ -22,6 +27,7 @@ class NotificationsConfig:
 class Config:
     user: UserConfig
     filter: FilterConfig
+    llm: LLMConfig
     notifications: NotificationsConfig
 
 def load_config(path: str = "config.yaml") -> Config:
@@ -30,5 +36,6 @@ def load_config(path: str = "config.yaml") -> Config:
     return Config(
         user=UserConfig(**data["user"]),
         filter=FilterConfig(**data["filter"]),
+        llm=LLMConfig(**data["llm"]),
         notifications=NotificationsConfig(**data["notifications"]),
     )

@@ -1,13 +1,36 @@
 user:
-  desired_role: "Software Engineer"
-  desired_level: "Senior"
+  desired_role: "Data Science / ML Engineering Intern"
+  desired_level: "Intern"
   resume_path: "./resume.pdf"
 
 filter:
-  include_patterns: ["software engineer", "swe", "backend engineer"]
-  exclude_patterns: ["intern", "manager", "director", "vp", "head of"]
-  level_patterns: ["senior", "l4", "l5", "sr.", "ic4", "ic5"]
+  include_patterns:
+    - "data science"
+    - "data scientist"
+    - "data engineering"
+    - "data engineer"
+    - "data analyst"
+    - "ai engineer"
+    - "ml engineer"
+    - "machine learning engineer"
+    - "machine learning"
+    - "artificial intelligence"
+  exclude_patterns:
+    - "manager"
+    - "director"
+    - "vp"
+    - "head of"
+    - "staff"
+    - "principal"
+    - "senior"
+    - "sr."
+    - "lead"
+  level_patterns: ["intern", "internship", "co-op", "coop", "new grad", "student"]
   llm_score_threshold: 7.0
+
+llm:
+  model: "llama3.2"
+  base_url: "http://localhost:11434"
 
 notifications:
   type: "terminal"

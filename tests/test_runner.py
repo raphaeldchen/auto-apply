@@ -2,7 +2,7 @@ from unittest.mock import patch
 from models.company import Company
 from models.job import Job
 from models.digest import DigestResult
-from pipeline.config import Config, UserConfig, FilterConfig, NotificationsConfig
+from pipeline.config import Config, UserConfig, FilterConfig, LLMConfig, NotificationsConfig
 from pipeline.db import upsert_company
 from pipeline.runner import run_pipeline
 
@@ -10,6 +10,7 @@ def _config():
     return Config(
         user=UserConfig(desired_role="Software Engineer", desired_level="Senior", resume_path="./resume.pdf"),
         filter=FilterConfig(include_patterns=["software engineer"], exclude_patterns=[], level_patterns=[], llm_score_threshold=7.0),
+        llm=LLMConfig(model="llama3.2"),
         notifications=NotificationsConfig(type="terminal"),
     )
 

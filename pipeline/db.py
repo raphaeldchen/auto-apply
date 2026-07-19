@@ -45,7 +45,10 @@ def get_active_companies(conn: sqlite3.Connection) -> list[Company]:
 
 
 def get_seen_job_ids(conn: sqlite3.Connection, company_id: int) -> set[str]:
-    rows = conn.execute("SELECT id FROM jobs WHERE company_id = ?", (company_id,)).fetchall()
+    rows = conn.execute(
+        "SELECT id FROM jobs WHERE company_id = ? AND filter_status != 'kw_filtered'",
+        (company_id,),
+    ).fetchall()
     return {row["id"] for row in rows}
 
 

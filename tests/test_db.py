@@ -35,8 +35,19 @@ def test_get_seen_job_ids_returns_existing(db_conn):
                                          status="active"))
     upsert_jobs(db_conn, [Job(id="j1", company_id=c.id, title="SWE",
                                url=None, location=None, description=None)])
+    update_job_filter_status(db_conn, "j1", c.id, "matched")
     seen = get_seen_job_ids(db_conn, c.id)
     assert "j1" in seen
+
+def test_get_seen_job_ids_excludes_kw_filtered(db_conn):
+    c = upsert_company(db_conn, Company(name="Stripe", slug="stripe",
+                                         ats_type="greenhouse", board_token="stripe",
+                                         status="active"))
+    upsert_jobs(db_conn, [Job(id="j1", company_id=c.id, title="SWE",
+                               url=None, location=None, description=None)])
+    update_job_filter_status(db_conn, "j1", c.id, "kw_filtered", kw_reason="no include pattern match")
+    seen = get_seen_job_ids(db_conn, c.id)
+    assert "j1" not in seen
 
 def test_upsert_jobs_ignores_duplicate(db_conn):
     c = upsert_company(db_conn, Company(name="Stripe", slug="stripe",

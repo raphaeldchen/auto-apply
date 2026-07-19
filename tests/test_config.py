@@ -8,6 +8,7 @@ def config_file(tmp_path):
     content = {
         "user": {"desired_role": "Software Engineer", "desired_level": "Senior", "resume_path": "./resume.pdf"},
         "filter": {"include_patterns": ["software engineer"], "exclude_patterns": ["intern"], "level_patterns": ["senior"], "llm_score_threshold": 7.0},
+        "llm": {"model": "llama3.2", "base_url": "http://localhost:11434"},
         "notifications": {"type": "terminal"},
     }
     p = tmp_path / "config.yaml"

@@ -17,7 +17,7 @@ def filter_jobs(
             job.kw_reason = kw_reason
             kw_filtered.append(job)
             continue
-        score, reason = score_job(job, config.user)
+        score, reason = score_job(job, config.user, config.llm)
         job.llm_score = score
         job.llm_reason = reason
         if score >= config.filter.llm_score_threshold:
