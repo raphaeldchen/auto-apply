@@ -1,0 +1,22 @@
+# Companies believed to use the Workday ATS.
+# VERIFY each entry — ATS choice changes over time. Prune and extend freely.
+# `add-companies` probes each name Workday-only; misses are reported, not fatal.
+companies:
+  - "Salesforce"
+  - "Adobe"
+  - "NVIDIA"
+  - "Netflix"
+  - "Airbnb"
+  - "Workday"
+  - "Target"
+  - "Best Buy"
+  - "Comcast"
+  - "Mastercard"
+  - "Visa"
+  - "Nordstrom"
+  - "CVS Health"
+  - "Bank of America"
+  - "Toyota"
+  - "Unilever"
+  - "Accenture"
+  - "Sanofi"
