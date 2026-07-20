@@ -1,5 +1,6 @@
 import sqlite3
 import httpx
+from playwright.sync_api import Error as PlaywrightError
 from models.company import Company
 from models.job import Job, RawJob
 from pipeline.db import get_seen_job_ids, upsert_jobs
@@ -18,7 +19,7 @@ def fetch_jobs_for_company(company: Company) -> list[RawJob]:
 def poll_company(company: Company, conn: sqlite3.Connection) -> list[Job]:
     try:
         raw_jobs = fetch_jobs_for_company(company)
-    except (httpx.HTTPError, KeyError, ValueError) as e:
+    except (httpx.HTTPError, KeyError, ValueError, PlaywrightError) as e:
         print(f"Failed to fetch jobs for {company.name}: {e}")
         return []
     seen_ids = get_seen_job_ids(conn, company.id)

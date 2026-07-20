@@ -50,3 +50,17 @@ def test_poll_returns_empty_on_malformed_token(db_conn):
     ):
         new_jobs = poll_company(company, db_conn)
     assert new_jobs == []
+
+def test_poll_returns_empty_on_playwright_error(db_conn, monkeypatch):
+    from playwright.sync_api import Error as PlaywrightError
+    from pipeline.discovery import poller
+    company = upsert_company(db_conn, Company(
+        name="Workday", slug="workday.wd5/Workday", ats_type="workday",
+        board_token="workday.wd5/Workday", status="active"))
+
+    def boom(token):
+        raise PlaywrightError("navigation timeout")
+
+    monkeypatch.setitem(poller._CLIENT_MAP, "workday", boom)
+    new_jobs = poller.poll_company(company, db_conn)
+    assert new_jobs == []
