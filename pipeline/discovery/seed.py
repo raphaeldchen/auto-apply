@@ -23,10 +23,20 @@ async def resolve_workday_company(name: str) -> tuple[str, str] | None:
 
 
 async def register_seed_companies(conn, names: list[str]) -> dict[str, list[str]]:
+    """Bulk-register seed companies as Workday boards.
+
+    Returns a dict with 4 keys, each a list of company names:
+      - "registered": successfully resolved and upserted
+      - "skipped": already present in the DB
+      - "missed": cleanly probed but no Workday board found (genuine miss)
+      - "errored": probe raised an exception (e.g. browser launch failure,
+        network error, bot-detection block) — could not be verified either way
+    """
     existing = {c.name for c in get_all_companies(conn)}
     registered: list[str] = []
     skipped: list[str] = []
     missed: list[str] = []
+    errored: list[str] = []
     for name in names:
         if name in existing:
             skipped.append(name)
@@ -34,7 +44,7 @@ async def register_seed_companies(conn, names: list[str]) -> dict[str, list[str]
         try:
             result = await resolve_workday_company(name)
         except Exception:
-            missed.append(name)
+            errored.append(name)
             continue
         if result is None:
             missed.append(name)
@@ -44,4 +54,4 @@ async def register_seed_companies(conn, names: list[str]) -> dict[str, list[str]
             name=name, slug=board_token, ats_type="workday",
             board_token=board_token, status="active"))
         registered.append(name)
-    return {"registered": registered, "skipped": skipped, "missed": missed}
+    return {"registered": registered, "skipped": skipped, "missed": missed, "errored": errored}

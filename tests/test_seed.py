@@ -44,6 +44,7 @@ async def test_register_skips_existing(db_conn):
     assert result["skipped"] == ["Foo"]
     assert result["registered"] == []
     assert result["missed"] == []
+    assert result["errored"] == []
 
 
 async def test_register_records_hits_and_misses(db_conn):
@@ -57,6 +58,7 @@ async def test_register_records_hits_and_misses(db_conn):
         result = await seed.register_seed_companies(db_conn, ["Bar", "Baz"])
     assert result["registered"] == ["Bar"]
     assert result["missed"] == ["Baz"]
+    assert result["errored"] == []
     names = {c.name for c in get_all_companies(db_conn)}
     assert "Bar" in names
     assert "Baz" not in names
@@ -79,7 +81,8 @@ async def test_register_continues_after_exception(db_conn):
     with patch("pipeline.discovery.seed.resolve_workday_company", new=fake_resolve):
         result = await seed.register_seed_companies(db_conn, ["BadName", "GoodName", "MissName"])
     assert result["registered"] == ["GoodName"]
-    assert result["missed"] == ["BadName", "MissName"]
+    assert result["missed"] == ["MissName"]
+    assert result["errored"] == ["BadName"]
     names = {c.name for c in get_all_companies(db_conn)}
     assert "GoodName" in names
     assert "BadName" not in names

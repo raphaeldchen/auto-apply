@@ -91,10 +91,13 @@ def add_companies(seed_file):
         click.echo(f"– {name} (already registered)")
     for name in result["missed"]:
         click.echo(f"✗ {name} — not found on Workday")
+    for name in result["errored"]:
+        click.echo(f"⚠ {name} — probe failed, could not verify")
     click.echo(
         f"\n{len(result['registered'])} added, "
         f"{len(result['skipped'])} skipped, "
-        f"{len(result['missed'])} not found."
+        f"{len(result['missed'])} not found, "
+        f"{len(result['errored'])} errored."
     )
 
 @cli.command()
