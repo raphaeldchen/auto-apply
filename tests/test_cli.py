@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 from click.testing import CliRunner
 from main import cli
 
@@ -39,3 +39,25 @@ def test_add_company_unknown_ats_type_errors():
     )
     assert result.exit_code != 0
     assert "Unknown ATS type" in result.output or "invalid" in result.output
+
+
+def test_add_companies_reports_results(db_conn):
+    fake = {"registered": ["Foo"], "skipped": ["Bar"], "missed": ["Baz"]}
+    with patch("main.init_db", return_value=db_conn), \
+         patch("main.load_seed_companies", return_value=["Foo", "Bar", "Baz"]), \
+         patch("main.register_seed_companies", new=AsyncMock(return_value=fake)):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["add-companies", "--seed-file", "x.yaml"])
+    assert result.exit_code == 0
+    assert "Foo" in result.output
+    assert "Bar" in result.output
+    assert "Baz" in result.output
+
+
+def test_add_companies_empty_seed(db_conn):
+    with patch("main.init_db", return_value=db_conn), \
+         patch("main.load_seed_companies", return_value=[]):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["add-companies", "--seed-file", "x.yaml"])
+    assert result.exit_code == 0
+    assert "No companies" in result.output
