@@ -63,3 +63,24 @@ async def test_register_records_hits_and_misses(db_conn):
     bar = next(c for c in get_all_companies(db_conn) if c.name == "Bar")
     assert bar.ats_type == "workday"
     assert bar.board_token == "bar.wd5/Careers"
+
+
+async def test_register_continues_after_exception(db_conn):
+    from pipeline.db import get_all_companies
+    from models.company import Company
+
+    async def fake_resolve(name):
+        if name == "BadName":
+            raise RuntimeError("Browser launch failed")
+        if name == "GoodName":
+            return ("workday", "good.wd5/Careers")
+        return None
+
+    with patch("pipeline.discovery.seed.resolve_workday_company", new=fake_resolve):
+        result = await seed.register_seed_companies(db_conn, ["BadName", "GoodName", "MissName"])
+    assert result["registered"] == ["GoodName"]
+    assert result["missed"] == ["BadName", "MissName"]
+    names = {c.name for c in get_all_companies(db_conn)}
+    assert "GoodName" in names
+    assert "BadName" not in names
+    assert "MissName" not in names

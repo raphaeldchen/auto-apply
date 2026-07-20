@@ -31,7 +31,11 @@ async def register_seed_companies(conn, names: list[str]) -> dict[str, list[str]
         if name in existing:
             skipped.append(name)
             continue
-        result = await resolve_workday_company(name)
+        try:
+            result = await resolve_workday_company(name)
+        except Exception:
+            missed.append(name)
+            continue
         if result is None:
             missed.append(name)
             continue
