@@ -28,3 +28,38 @@ async def test_resolve_workday_company_returns_none_when_no_hit():
          patch("pipeline.discovery.seed.probe_workday", new=AsyncMock(return_value=None)):
         result = await seed.resolve_workday_company("Nope")
     assert result is None
+
+
+async def test_register_skips_existing(db_conn):
+    from pipeline.db import upsert_company, get_all_companies
+    from models.company import Company
+
+    upsert_company(db_conn, Company(
+        name="Foo", slug="foo", ats_type="workday",
+        board_token="foo.wd5/Careers", status="active"))
+    with patch("pipeline.discovery.seed.resolve_workday_company",
+               new=AsyncMock()) as mock_resolve:
+        result = await seed.register_seed_companies(db_conn, ["Foo"])
+    mock_resolve.assert_not_called()
+    assert result["skipped"] == ["Foo"]
+    assert result["registered"] == []
+    assert result["missed"] == []
+
+
+async def test_register_records_hits_and_misses(db_conn):
+    from pipeline.db import upsert_company, get_all_companies
+    from models.company import Company
+
+    async def fake_resolve(name):
+        return ("workday", "bar.wd5/Careers") if name == "Bar" else None
+
+    with patch("pipeline.discovery.seed.resolve_workday_company", new=fake_resolve):
+        result = await seed.register_seed_companies(db_conn, ["Bar", "Baz"])
+    assert result["registered"] == ["Bar"]
+    assert result["missed"] == ["Baz"]
+    names = {c.name for c in get_all_companies(db_conn)}
+    assert "Bar" in names
+    assert "Baz" not in names
+    bar = next(c for c in get_all_companies(db_conn) if c.name == "Bar")
+    assert bar.ats_type == "workday"
+    assert bar.board_token == "bar.wd5/Careers"
