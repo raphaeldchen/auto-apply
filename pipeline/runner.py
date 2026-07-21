@@ -12,8 +12,8 @@ def run_pipeline(config: Config, conn: sqlite3.Connection) -> DigestResult:
     unsupported = [c for c in all_companies if c.status == "unsupported"]
     company_digests = []
     for company in active:
-        new_jobs = poll_company(company, conn)
-        matched, kw_filtered, llm_filtered = filter_jobs(new_jobs, config, conn)
+        poll = poll_company(company, conn)
+        matched, kw_filtered, llm_filtered = filter_jobs(poll.new_jobs, config, conn)
         company_digests.append(CompanyDigest(company=company, matched=matched, kw_filtered=kw_filtered, llm_filtered=llm_filtered))
     return DigestResult(
         date=datetime.now().strftime("%Y-%m-%d"),

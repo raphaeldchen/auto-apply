@@ -34,3 +34,6 @@ llm:
 
 notifications:
   type: "terminal"
+
+schedule:
+  poll_interval_minutes: 60

@@ -30,3 +30,23 @@ def test_load_config_filter_fields(config_file):
     config = load_config(config_file)
     assert config.filter.llm_score_threshold == 7.0
     assert "intern" in config.filter.exclude_patterns
+
+
+def test_config_default_poll_interval(config_file):
+    config = load_config(config_file)
+    assert config.schedule.poll_interval_minutes == 60
+
+
+def test_config_reads_poll_interval(tmp_path):
+    import yaml
+    content = {
+        "user": {"desired_role": "SE", "desired_level": "Senior", "resume_path": "./r.pdf"},
+        "filter": {"include_patterns": [], "exclude_patterns": [], "level_patterns": [], "llm_score_threshold": 7.0},
+        "llm": {"model": "llama3.2", "base_url": "http://localhost:11434"},
+        "notifications": {"type": "terminal"},
+        "schedule": {"poll_interval_minutes": 30},
+    }
+    p = tmp_path / "config.yaml"
+    p.write_text(yaml.dump(content))
+    config = load_config(str(p))
+    assert config.schedule.poll_interval_minutes == 30

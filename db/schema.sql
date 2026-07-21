@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     llm_score      REAL,
     llm_reason     TEXT,
     kw_reason      TEXT,
+    job_state      TEXT    NOT NULL DEFAULT 'open',
+    last_seen_at   TEXT,
+    closed_at      TEXT,
     PRIMARY KEY (id, company_id)
 );
 
@@ -28,5 +31,7 @@ CREATE TABLE IF NOT EXISTS applications (
     job_id      TEXT    NOT NULL,
     company_id  INTEGER NOT NULL,
     applied_at  TEXT,
-    status      TEXT
+    status      TEXT,
+    updated_at  TEXT,
+    UNIQUE (job_id, company_id)
 );

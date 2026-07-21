@@ -1,3 +1,4 @@
+from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 from pipeline.config import Config
 from pipeline.db import init_db
@@ -7,7 +8,7 @@ from pipeline.notifier import print_digest
 def start_scheduler(config: Config, db_path: str = "auto_apply.db") -> None:
     scheduler = BlockingScheduler()
 
-    def daily_job():
+    def poll_job():
         conn = init_db(db_path)
         try:
             result = run_pipeline(config, conn)
@@ -15,6 +16,7 @@ def start_scheduler(config: Config, db_path: str = "auto_apply.db") -> None:
         finally:
             conn.close()
 
-    scheduler.add_job(daily_job, "cron", hour=8, minute=0)
-    print("Scheduler started. Running daily at 08:00. Press Ctrl+C to stop.")
+    minutes = config.schedule.poll_interval_minutes
+    scheduler.add_job(poll_job, "interval", minutes=minutes, next_run_time=datetime.now())
+    print(f"Scheduler started. Polling now, then every {minutes} min. Press Ctrl+C to stop.")
     scheduler.start()
