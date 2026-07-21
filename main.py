@@ -5,6 +5,7 @@ from pipeline.config import load_config
 from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs
 from pipeline.discovery.detector import detect_ats
 from pipeline.discovery.poller import _CLIENT_MAP
+from pipeline.discovery.seed import load_seed_companies, register_seed_companies
 from pipeline.runner import run_pipeline
 from pipeline.notifier import print_digest
 from pipeline.scheduler import start_scheduler
@@ -69,6 +70,35 @@ def add_company(name, slug, ats_type):
             upsert_company(conn, company)
     finally:
         conn.close()
+
+@cli.command()
+@click.option("--seed-file", default="companies_seed.yaml", show_default=True,
+              help="YAML file with a 'companies' list")
+def add_companies(seed_file):
+    """Bulk-register companies from a seed list as Workday boards."""
+    names = load_seed_companies(seed_file)
+    if not names:
+        click.echo(f"No companies found in {seed_file}.")
+        return
+    conn = init_db(DB_PATH)
+    try:
+        result = asyncio.run(register_seed_companies(conn, names))
+    finally:
+        conn.close()
+    for name in result["registered"]:
+        click.echo(f"✓ {name}")
+    for name in result["skipped"]:
+        click.echo(f"– {name} (already registered)")
+    for name in result["missed"]:
+        click.echo(f"✗ {name} — not found on Workday")
+    for name in result["errored"]:
+        click.echo(f"⚠ {name} — probe failed, could not verify")
+    click.echo(
+        f"\n{len(result['registered'])} added, "
+        f"{len(result['skipped'])} skipped, "
+        f"{len(result['missed'])} not found, "
+        f"{len(result['errored'])} errored."
+    )
 
 @cli.command()
 def list_companies():
