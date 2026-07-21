@@ -71,3 +71,56 @@ def test_update_job_filter_status(db_conn):
     job, company = matched[0]
     assert job.llm_score == 8.5
     assert job.llm_reason == "strong match"
+
+
+def test_init_db_has_lifecycle_columns(tmp_path):
+    from pipeline.db import init_db
+    conn = init_db(str(tmp_path / "fresh.db"))
+    job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+    assert {"job_state", "last_seen_at", "closed_at"} <= job_cols
+    app_cols = {r["name"] for r in conn.execute("PRAGMA table_info(applications)")}
+    assert "updated_at" in app_cols
+    conn.close()
+
+
+def test_applications_reject_duplicate_pair(tmp_path):
+    import sqlite3
+    import pytest
+    from pipeline.db import init_db
+    conn = init_db(str(tmp_path / "fresh.db"))
+    conn.execute("INSERT INTO applications (job_id, company_id, status) VALUES ('j1', 1, 'applied')")
+    conn.commit()
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO applications (job_id, company_id, status) VALUES ('j1', 1, 'applied')")
+        conn.commit()
+    conn.close()
+
+
+def test_init_db_migrates_legacy_db(tmp_path):
+    import sqlite3
+    from pipeline.db import init_db
+    path = str(tmp_path / "legacy.db")
+    legacy = sqlite3.connect(path)
+    legacy.executescript(
+        """
+        CREATE TABLE jobs (
+            id TEXT NOT NULL, company_id INTEGER NOT NULL, title TEXT NOT NULL,
+            url TEXT, location TEXT, description TEXT, first_seen_at TEXT NOT NULL,
+            filter_status TEXT NOT NULL DEFAULT 'new', llm_score REAL, llm_reason TEXT,
+            kw_reason TEXT, PRIMARY KEY (id, company_id)
+        );
+        CREATE TABLE applications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
+            company_id INTEGER NOT NULL, applied_at TEXT, status TEXT
+        );
+        """
+    )
+    legacy.commit()
+    legacy.close()
+
+    conn = init_db(path)
+    job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+    assert {"job_state", "last_seen_at", "closed_at"} <= job_cols
+    app_cols = {r["name"] for r in conn.execute("PRAGMA table_info(applications)")}
+    assert "updated_at" in app_cols
+    conn.close()

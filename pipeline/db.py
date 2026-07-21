@@ -5,6 +5,30 @@ from models.company import Company
 from models.job import Job
 
 
+def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    job_cols = _column_names(conn, "jobs")
+    if "job_state" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN job_state TEXT NOT NULL DEFAULT 'open'")
+    if "last_seen_at" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN last_seen_at TEXT")
+    if "closed_at" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN closed_at TEXT")
+    app_cols = _column_names(conn, "applications")
+    if "updated_at" not in app_cols:
+        conn.execute("ALTER TABLE applications ADD COLUMN updated_at TEXT")
+    # A legacy applications table lacks the inline UNIQUE constraint; a unique
+    # index gives the same guarantee and can be added by migration.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_job_company "
+        "ON applications (job_id, company_id)"
+    )
+    conn.commit()
+
+
 def init_db(db_path: str = "auto_apply.db") -> sqlite3.Connection:
     schema = (Path(__file__).parent.parent / "db" / "schema.sql").read_text()
     conn = sqlite3.connect(db_path)
@@ -12,6 +36,7 @@ def init_db(db_path: str = "auto_apply.db") -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(schema)
     conn.commit()
+    _migrate(conn)
     return conn
 
 
