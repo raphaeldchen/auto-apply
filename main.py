@@ -1,8 +1,12 @@
 import asyncio
+import sqlite3
 import click
 from urllib.parse import urlparse
 from pipeline.config import load_config
-from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs
+from pipeline.db import (
+    init_db, upsert_company, get_all_companies, get_matched_jobs,
+    create_application, update_application_status, get_applications, job_exists,
+)
 from pipeline.discovery.detector import detect_ats
 from pipeline.discovery.poller import _CLIENT_MAP
 from pipeline.discovery.seed import load_seed_companies, register_seed_companies
@@ -13,6 +17,7 @@ from models.company import Company
 
 DB_PATH = "auto_apply.db"
 CONFIG_PATH = "config.yaml"
+VALID_STATUSES = ("applied", "interviewing", "offer", "rejected")
 
 @click.group()
 def cli():
@@ -150,6 +155,69 @@ def show_matches(days):
                 click.echo(f"    {job.url}")
     finally:
         conn.close()
+
+@cli.command()
+@click.argument("job_id")
+@click.argument("company_id", type=int)
+def apply(job_id, company_id):
+    """Mark yourself as having applied to a job."""
+    conn = init_db(DB_PATH)
+    try:
+        if not job_exists(conn, job_id, company_id):
+            raise click.UsageError(f"No job {job_id} for company {company_id}.")
+        state_row = conn.execute(
+            "SELECT job_state FROM jobs WHERE id=? AND company_id=?", (job_id, company_id)
+        ).fetchone()
+        try:
+            create_application(conn, job_id, company_id)
+        except sqlite3.IntegrityError:
+            raise click.UsageError(
+                f"Already tracking an application for {job_id}. Use set-status to update it."
+            )
+        note = " (job is closed)" if state_row["job_state"] == "closed" else ""
+        click.echo(f"✓ Marked applied: {job_id}{note}")
+    finally:
+        conn.close()
+
+
+@cli.command(name="set-status")
+@click.argument("job_id")
+@click.argument("company_id", type=int)
+@click.argument("status")
+def set_status(job_id, company_id, status):
+    """Update the status of a tracked application."""
+    if status not in VALID_STATUSES:
+        raise click.UsageError(
+            f"Invalid status '{status}'. Choose from: {', '.join(VALID_STATUSES)}"
+        )
+    conn = init_db(DB_PATH)
+    try:
+        updated = update_application_status(conn, job_id, company_id, status)
+        if updated == 0:
+            raise click.UsageError(
+                f"No tracked application for {job_id}. Use apply first."
+            )
+        click.echo(f"✓ {job_id} → {status}")
+    finally:
+        conn.close()
+
+
+@cli.command(name="list-applications")
+@click.option("--status", default=None, help="Filter by status")
+def list_applications(status):
+    """List tracked job applications."""
+    conn = init_db(DB_PATH)
+    try:
+        apps = get_applications(conn, status)
+        if not apps:
+            click.echo("No tracked applications.")
+            return
+        for a in apps:
+            closed = " [CLOSED]" if a["job_state"] == "closed" else ""
+            click.echo(f"  [{a['status']}] {a['company_name']} — {a['title']}{closed}")
+    finally:
+        conn.close()
+
 
 if __name__ == "__main__":
     cli()
