@@ -3,6 +3,7 @@ from models.job import Job
 from pipeline.db import (
     upsert_company, get_all_companies, get_active_companies,
     get_seen_job_ids, upsert_jobs, update_job_filter_status, get_matched_jobs,
+    get_open_job_ids, reconcile_job_states,
 )
 
 def test_upsert_company_creates_and_returns_id(db_conn):
@@ -124,3 +125,65 @@ def test_init_db_migrates_legacy_db(tmp_path):
     app_cols = {r["name"] for r in conn.execute("PRAGMA table_info(applications)")}
     assert "updated_at" in app_cols
     conn.close()
+
+
+def _insert_job(conn, job_id, company_id, state="open"):
+    # Ensure the company exists
+    conn.execute(
+        "INSERT OR IGNORE INTO companies (id, name, slug, ats_type, board_token, status) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (company_id, f"Company{company_id}", f"company{company_id}", "test", "token", "active"),
+    )
+    conn.execute(
+        "INSERT INTO jobs (id, company_id, title, first_seen_at, job_state) "
+        "VALUES (?, ?, 'T', '2026-01-01', ?)",
+        (job_id, company_id, state),
+    )
+    conn.commit()
+
+
+def test_reconcile_closes_absent_job(db_conn):
+    _insert_job(db_conn, "gone", 1)
+    _insert_job(db_conn, "here", 1)
+    reconcile_job_states(db_conn, 1, {"here"})
+    rows = {r["id"]: r for r in db_conn.execute(
+        "SELECT id, job_state, closed_at, last_seen_at FROM jobs WHERE company_id = 1")}
+    assert rows["gone"]["job_state"] == "closed"
+    assert rows["gone"]["closed_at"] is not None
+    assert rows["here"]["job_state"] == "open"
+    assert rows["here"]["last_seen_at"] is not None
+
+
+def test_reconcile_reopens_returning_job(db_conn):
+    _insert_job(db_conn, "back", 1, state="closed")
+    db_conn.execute("UPDATE jobs SET closed_at='2026-01-02' WHERE id='back'")
+    db_conn.commit()
+    reconcile_job_states(db_conn, 1, {"back"})
+    row = db_conn.execute("SELECT job_state, closed_at FROM jobs WHERE id='back'").fetchone()
+    assert row["job_state"] == "open"
+    assert row["closed_at"] is None
+
+
+def test_reconcile_empty_current_closes_all_open(db_conn):
+    _insert_job(db_conn, "a", 1)
+    _insert_job(db_conn, "b", 1)
+    reconcile_job_states(db_conn, 1, set())
+    states = {r["id"]: r["job_state"] for r in db_conn.execute(
+        "SELECT id, job_state FROM jobs WHERE company_id = 1")}
+    assert states == {"a": "closed", "b": "closed"}
+
+
+def test_reconcile_scoped_to_company(db_conn):
+    _insert_job(db_conn, "x", 1)
+    _insert_job(db_conn, "x", 2)
+    reconcile_job_states(db_conn, 1, set())
+    c1 = db_conn.execute("SELECT job_state FROM jobs WHERE id='x' AND company_id=1").fetchone()
+    c2 = db_conn.execute("SELECT job_state FROM jobs WHERE id='x' AND company_id=2").fetchone()
+    assert c1["job_state"] == "closed"
+    assert c2["job_state"] == "open"
+
+
+def test_get_open_job_ids(db_conn):
+    _insert_job(db_conn, "o", 1, state="open")
+    _insert_job(db_conn, "c", 1, state="closed")
+    assert get_open_job_ids(db_conn, 1) == {"o"}

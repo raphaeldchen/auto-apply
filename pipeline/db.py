@@ -144,3 +144,30 @@ def _row_to_job(row: sqlite3.Row) -> Job:
         llm_score=row["llm_score"], llm_reason=row["llm_reason"],
         kw_reason=row["kw_reason"],
     )
+
+
+def get_open_job_ids(conn: sqlite3.Connection, company_id: int) -> set[str]:
+    rows = conn.execute(
+        "SELECT id FROM jobs WHERE company_id = ? AND job_state = 'open'",
+        (company_id,),
+    ).fetchall()
+    return {row["id"] for row in rows}
+
+
+def reconcile_job_states(
+    conn: sqlite3.Connection, company_id: int, current_ids: set[str]
+) -> None:
+    now = datetime.now().isoformat()
+    if current_ids:
+        conn.executemany(
+            "UPDATE jobs SET job_state='open', last_seen_at=?, closed_at=NULL "
+            "WHERE id=? AND company_id=?",
+            [(now, jid, company_id) for jid in current_ids],
+        )
+    absent = get_open_job_ids(conn, company_id) - set(current_ids)
+    if absent:
+        conn.executemany(
+            "UPDATE jobs SET job_state='closed', closed_at=? WHERE id=? AND company_id=?",
+            [(now, jid, company_id) for jid in absent],
+        )
+    conn.commit()
