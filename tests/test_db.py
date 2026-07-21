@@ -187,3 +187,74 @@ def test_get_open_job_ids(db_conn):
     _insert_job(db_conn, "o", 1, state="open")
     _insert_job(db_conn, "c", 1, state="closed")
     assert get_open_job_ids(db_conn, 1) == {"o"}
+
+
+def _company_and_job(conn, job_id="j1", state="open"):
+    from pipeline.db import upsert_company, upsert_jobs
+    from models.company import Company
+    from models.job import Job
+    c = upsert_company(conn, Company(name="Stripe", slug="stripe", ats_type="greenhouse", board_token="stripe", status="active"))
+    conn.execute(
+        "INSERT INTO jobs (id, company_id, title, first_seen_at, job_state) VALUES (?, ?, 'Eng', '2026-01-01', ?)",
+        (job_id, c.id, state),
+    )
+    conn.commit()
+    return c.id
+
+
+def test_create_application_sets_applied(db_conn):
+    from pipeline.db import create_application
+    cid = _company_and_job(db_conn)
+    create_application(db_conn, "j1", cid)
+    row = db_conn.execute("SELECT status, applied_at, updated_at FROM applications WHERE job_id='j1'").fetchone()
+    assert row["status"] == "applied"
+    assert row["applied_at"] is not None
+    assert row["updated_at"] is not None
+
+
+def test_create_application_duplicate_raises(db_conn):
+    import sqlite3
+    import pytest
+    from pipeline.db import create_application
+    cid = _company_and_job(db_conn)
+    create_application(db_conn, "j1", cid)
+    with pytest.raises(sqlite3.IntegrityError):
+        create_application(db_conn, "j1", cid)
+
+
+def test_update_application_status(db_conn):
+    from pipeline.db import create_application, update_application_status
+    cid = _company_and_job(db_conn)
+    create_application(db_conn, "j1", cid)
+    affected = update_application_status(db_conn, "j1", cid, "interviewing")
+    assert affected == 1
+    row = db_conn.execute("SELECT status FROM applications WHERE job_id='j1'").fetchone()
+    assert row["status"] == "interviewing"
+
+
+def test_update_application_status_no_row(db_conn):
+    from pipeline.db import update_application_status
+    cid = _company_and_job(db_conn)
+    assert update_application_status(db_conn, "nope", cid, "offer") == 0
+
+
+def test_get_applications_joins_and_filters(db_conn):
+    from pipeline.db import create_application, update_application_status, get_applications
+    cid = _company_and_job(db_conn, job_id="j1", state="closed")
+    create_application(db_conn, "j1", cid)
+    rows = get_applications(db_conn)
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Eng"
+    assert rows[0]["company_name"] == "Stripe"
+    assert rows[0]["job_state"] == "closed"
+    assert rows[0]["status"] == "applied"
+    update_application_status(db_conn, "j1", cid, "offer")
+    assert get_applications(db_conn, status="applied") == []
+    assert len(get_applications(db_conn, status="offer")) == 1
+
+
+def test_job_exists(db_conn):
+    from pipeline.db import job_exists
+    cid = _company_and_job(db_conn)
+    assert job_exists(db_conn, "j1", cid) is True
+    assert job_exists(db_conn, "missing", cid) is False
