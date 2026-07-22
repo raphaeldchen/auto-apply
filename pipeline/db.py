@@ -5,6 +5,30 @@ from models.company import Company
 from models.job import Job
 
 
+def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    job_cols = _column_names(conn, "jobs")
+    if "job_state" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN job_state TEXT NOT NULL DEFAULT 'open'")
+    if "last_seen_at" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN last_seen_at TEXT")
+    if "closed_at" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN closed_at TEXT")
+    app_cols = _column_names(conn, "applications")
+    if "updated_at" not in app_cols:
+        conn.execute("ALTER TABLE applications ADD COLUMN updated_at TEXT")
+    # A legacy applications table lacks the inline UNIQUE constraint; a unique
+    # index gives the same guarantee and can be added by migration.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_job_company "
+        "ON applications (job_id, company_id)"
+    )
+    conn.commit()
+
+
 def init_db(db_path: str = "auto_apply.db") -> sqlite3.Connection:
     schema = (Path(__file__).parent.parent / "db" / "schema.sql").read_text()
     conn = sqlite3.connect(db_path)
@@ -12,6 +36,7 @@ def init_db(db_path: str = "auto_apply.db") -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(schema)
     conn.commit()
+    _migrate(conn)
     return conn
 
 
@@ -119,3 +144,75 @@ def _row_to_job(row: sqlite3.Row) -> Job:
         llm_score=row["llm_score"], llm_reason=row["llm_reason"],
         kw_reason=row["kw_reason"],
     )
+
+
+def get_open_job_ids(conn: sqlite3.Connection, company_id: int) -> set[str]:
+    rows = conn.execute(
+        "SELECT id FROM jobs WHERE company_id = ? AND job_state = 'open'",
+        (company_id,),
+    ).fetchall()
+    return {row["id"] for row in rows}
+
+
+def reconcile_job_states(
+    conn: sqlite3.Connection, company_id: int, current_ids: set[str]
+) -> None:
+    now = datetime.now().isoformat()
+    if current_ids:
+        conn.executemany(
+            "UPDATE jobs SET job_state='open', last_seen_at=?, closed_at=NULL "
+            "WHERE id=? AND company_id=?",
+            [(now, jid, company_id) for jid in current_ids],
+        )
+    absent = get_open_job_ids(conn, company_id) - set(current_ids)
+    if absent:
+        conn.executemany(
+            "UPDATE jobs SET job_state='closed', closed_at=? WHERE id=? AND company_id=?",
+            [(now, jid, company_id) for jid in absent],
+        )
+    conn.commit()
+
+
+def job_exists(conn: sqlite3.Connection, job_id: str, company_id: int) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM jobs WHERE id=? AND company_id=?", (job_id, company_id)
+    ).fetchone()
+    return row is not None
+
+
+def create_application(conn: sqlite3.Connection, job_id: str, company_id: int) -> None:
+    now = datetime.now().isoformat()
+    conn.execute(
+        "INSERT INTO applications (job_id, company_id, applied_at, status, updated_at) "
+        "VALUES (?, ?, ?, 'applied', ?)",
+        (job_id, company_id, now, now),
+    )
+    conn.commit()
+
+
+def update_application_status(
+    conn: sqlite3.Connection, job_id: str, company_id: int, status: str
+) -> int:
+    now = datetime.now().isoformat()
+    cur = conn.execute(
+        "UPDATE applications SET status=?, updated_at=? WHERE job_id=? AND company_id=?",
+        (status, now, job_id, company_id),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def get_applications(conn: sqlite3.Connection, status: str | None = None) -> list[dict]:
+    query = (
+        "SELECT a.job_id, a.company_id, a.applied_at, a.status, a.updated_at, "
+        "       j.title, j.job_state, c.name AS company_name "
+        "FROM applications a "
+        "JOIN jobs j ON a.job_id = j.id AND a.company_id = j.company_id "
+        "JOIN companies c ON a.company_id = c.id"
+    )
+    params: tuple = ()
+    if status:
+        query += " WHERE a.status = ?"
+        params = (status,)
+    query += " ORDER BY a.updated_at DESC"
+    return [dict(row) for row in conn.execute(query, params).fetchall()]
