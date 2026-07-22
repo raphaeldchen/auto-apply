@@ -325,6 +325,77 @@ def test_tailor_without_polish_never_calls_llm(
     mock_rp.assert_not_called()
 
 
+def test_letter_writes_html_and_manifest(cli_db, db_conn, analyze_config, tmp_path):
+    import json
+    from pipeline.materials.letter import LetterResult
+
+    c = _seed_job(db_conn, "Python and Airflow required.")
+    out = tmp_path / "letter.html"
+    paragraphs = [
+        {"text": "I am excited to apply for the ML Intern role at Stripe.",
+         "citations": []},
+        {"text": "I wrote Airflow ETL jobs loading PostgreSQL.",
+         "citations": ["acme.0"]},
+    ]
+    ok = LetterResult(ok=True, paragraphs=paragraphs,
+                      text="\n\n".join(p["text"] for p in paragraphs),
+                      violations=[], attempts=1)
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.generate_letter", return_value=ok) as mock_gl:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["letter", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert mock_gl.call_args.kwargs["model"] == "claude-haiku-4-5"  # standard tier
+    assert mock_gl.call_args.kwargs["company_name"] == "Stripe"
+    assert mock_gl.call_args.kwargs["job_title"] == "ML Intern"
+    assert "Stripe" in mock_gl.call_args.kwargs["other_companies"]
+    assert "I wrote Airflow ETL jobs loading PostgreSQL." in out.read_text()
+    manifest = json.loads((tmp_path / "letter.html.manifest.json").read_text())
+    assert manifest["verified"] is True
+    assert manifest["model"] == "claude-haiku-4-5"
+    assert manifest["tier"] == "standard"
+    assert manifest["attempts"] == 1
+    assert manifest["paragraphs"][1]["citations"] == ["acme.0"]
+
+
+def test_letter_failure_writes_nothing_and_prints_violations(
+        cli_db, db_conn, analyze_config, tmp_path):
+    from pipeline.materials.letter import LetterResult
+
+    c = _seed_job(db_conn, "Python required.")
+    out = tmp_path / "letter.html"
+    failed = LetterResult(ok=False, paragraphs=None, text=None,
+                          violations=["paragraph 2: number '15%' not in cited facts"],
+                          attempts=2)
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.generate_letter", return_value=failed):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["letter", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(out)])
+    assert result.exit_code == 0
+    assert not out.exists()
+    assert not (tmp_path / "letter.html.manifest.json").exists()
+    assert "No letter" in result.output
+    assert "15%" in result.output
+
+
+def test_letter_job_without_description_errors(
+        cli_db, db_conn, analyze_config, tmp_path):
+    c = _seed_job(db_conn, None)
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["letter", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(tmp_path / "l.html")])
+    assert "no description" in result.output.lower()
+
+
 def test_tailor_unknown_job_errors(cli_db, db_conn, analyze_config, tmp_path):
     with patch("main.init_db", return_value=cli_db), \
          patch("main.load_config", return_value=analyze_config):

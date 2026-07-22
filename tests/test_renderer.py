@@ -4,7 +4,7 @@ import pytest
 
 from pipeline.materials.jd_analyzer import analyze_jd
 from pipeline.materials.profile import build_fact_base, load_profile
-from pipeline.materials.renderer import render_pdf, render_resume_html
+from pipeline.materials.renderer import render_letter_html, render_pdf, render_resume_html
 from pipeline.materials.selector import SectionPlan, SelectionPlan, select_bullets
 
 PROFILE_YAML = """\
@@ -120,6 +120,31 @@ def test_text_overrides_replace_bullet_text(fact_base, plan):
     assert "Built a churn model in PyTorch and Python" not in html
     # untouched bullets still render verbatim
     assert "Built a recommender in Python with pandas" in html
+
+
+def test_letter_html_greeting_paragraphs_signature(fact_base):
+    paragraphs = [
+        {"text": "I am excited to apply for the ML Intern role at Stripe.",
+         "citations": []},
+        {"text": "Thank you for your consideration.", "citations": []},
+    ]
+    html = render_letter_html(fact_base, paragraphs, "Stripe", "ML Intern")
+    assert "Ada Example" in html
+    assert "ada@example.com" in html
+    assert "Dear Stripe" in html
+    assert "ML Intern" in html
+    assert "I am excited to apply for the ML Intern role at Stripe." in html
+    assert "Thank you for your consideration." in html
+    assert "Sincerely" in html
+
+
+def test_letter_html_escapes_markup(fact_base):
+    paragraphs = [
+        {"text": "Hello <script>alert(1)</script> Stripe.", "citations": []},
+        {"text": "Bye.", "citations": []},
+    ]
+    html = render_letter_html(fact_base, paragraphs, "Stripe", "ML Intern")
+    assert "<script>alert(1)</script>" not in html
 
 
 def test_render_pdf_drives_chromium_with_html(tmp_path):

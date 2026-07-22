@@ -5,6 +5,7 @@ the template autoescapes everything, so profile content can never inject
 markup. PDF generation reuses the Playwright Chromium already required by
 the Workday client.
 """
+from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -52,19 +53,44 @@ def render_resume_html(
             projects.append({"name": p.name, "bullets": bullets})
 
     personal = profile.personal
-    contact = [v for v in (personal.get("email"), personal.get("phone"),
-                           personal.get("location")) if v]
-    links = list((personal.get("links") or {}).values())
-
     return _env.get_template("resume.html.j2").render(
         name=personal.get("name", ""),
-        contact=contact,
-        links=links,
+        contact=_contact(personal),
+        links=_links(personal),
         skills=plan.skills_order,
         experience=experience,
         projects=projects,
         education=profile.education,
     )
+
+
+def render_letter_html(
+    fact_base: FactBase,
+    paragraphs: list[dict],
+    company_name: str,
+    job_title: str,
+) -> str:
+    """paragraphs are verified letter paragraphs ({"text", "citations"});
+    callers must only pass output that verify_letter accepted."""
+    personal = fact_base.profile.personal
+    return _env.get_template("letter.html.j2").render(
+        name=personal.get("name", ""),
+        contact=_contact(personal),
+        links=_links(personal),
+        company_name=company_name,
+        job_title=job_title,
+        paragraphs=[p["text"] for p in paragraphs],
+        date_line=datetime.now().strftime("%B %d, %Y"),
+    )
+
+
+def _contact(personal: dict) -> list[str]:
+    return [v for v in (personal.get("email"), personal.get("phone"),
+                        personal.get("location")) if v]
+
+
+def _links(personal: dict) -> list[str]:
+    return list((personal.get("links") or {}).values())
 
 
 def render_pdf(html: str, out_path: str) -> None:

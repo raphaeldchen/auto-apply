@@ -70,6 +70,7 @@ run          →  run_pipeline()
 | `pipeline/materials/renderer.py` | Jinja2 (autoescaped) resume HTML + Playwright Chromium PDF |
 | `pipeline/materials/verify.py` | Rephrase verifier: numeric multiset invariance, entity whitelist, proper-noun check |
 | `pipeline/materials/rephrase.py` | Anthropic Messages call proposing rephrases; every candidate verified, fail-closed to verbatim |
+| `pipeline/materials/letter.py` | Fact-cited cover-letter generation: verify → one retry with violations fed back → fail closed to no letter |
 | `pipeline/notifier.py` | Terminal digest printer |
 | `pipeline/scheduler.py` | APScheduler wrapper for daily runs |
 | `models/` | Plain dataclasses: `Company`, `Job`, `RawJob`, `DigestResult`, `CompanyDigest`, `Profile`/`FactBase` |
@@ -77,7 +78,7 @@ run          →  run_pipeline()
 
 ### Materials pipeline invariant
 
-"LLM proposes, harness disposes": generated resumes may only contain facts from `profile.yaml` (the fact base). The `tailor` command is fully deterministic by default; `--polish` adds LLM rephrasing where every candidate must pass `verify_rephrase` or that bullet falls back to verbatim. Never bypass the verifier or add free-form LLM rewriting. Every output gets a `{out}.manifest.json` provenance record.
+"LLM proposes, harness disposes": generated resumes and cover letters may only contain facts from `profile.yaml` (the fact base). The `tailor` command is fully deterministic by default; `--polish` adds LLM rephrasing where every candidate must pass `verify_rephrase` or that bullet falls back to verbatim. The `letter` command requires every paragraph to cite bullet ids/skills; `verify_letter` checks terms, numbers, company/title presence, and cross-company contamination — an unverifiable letter is simply not produced. Never bypass the verifiers or add free-form LLM rewriting. Every output gets a `{out}.manifest.json` provenance record.
 
 ### Config (`config.yaml`)
 
