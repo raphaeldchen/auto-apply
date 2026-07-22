@@ -254,6 +254,77 @@ def test_tailor_prints_selection_summary(cli_db, db_conn, analyze_config, tmp_pa
     assert "2/3" in result.output  # Python + Airflow covered, Rust not
 
 
+def test_tailor_polish_uses_tier_model_and_applies_rephrases(
+        cli_db, db_conn, analyze_config, tmp_path):
+    import json
+    from pipeline.db import set_company_tier
+    from pipeline.materials.rephrase import RephraseResult
+
+    c = _seed_job(db_conn, "Python and Airflow required. Rust a plus.")
+    set_company_tier(db_conn, "Stripe", "reach")
+    out = tmp_path / "resume.html"
+    polished = RephraseResult(
+        bullet_id="acme.0",
+        original="Wrote Airflow ETL jobs loading PostgreSQL",
+        text="Delivered Airflow ETL jobs loading PostgreSQL",
+        rephrased=True, reason=None)
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.rephrase_bullets", return_value=[polished]) as mock_rp:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(out), "--polish"])
+    assert result.exit_code == 0, result.output
+    assert mock_rp.call_args.kwargs["model"] == "claude-opus-4-8"
+    assert "Delivered Airflow ETL jobs loading PostgreSQL" in out.read_text()
+    manifest = json.loads((tmp_path / "resume.html.manifest.json").read_text())
+    assert manifest["verbatim"] is False
+    assert manifest["polish"]["model"] == "claude-opus-4-8"
+    assert manifest["polish"]["tier"] == "reach"
+    assert manifest["polish"]["rephrases"][0]["bullet_id"] == "acme.0"
+
+
+def test_tailor_polish_fail_closed_keeps_verbatim(
+        cli_db, db_conn, analyze_config, tmp_path):
+    import json
+    from pipeline.materials.rephrase import RephraseResult
+
+    c = _seed_job(db_conn, "Python and Airflow required.")
+    out = tmp_path / "resume.html"
+    rejected = RephraseResult(
+        bullet_id="acme.0",
+        original="Wrote Airflow ETL jobs loading PostgreSQL",
+        text="Wrote Airflow ETL jobs loading PostgreSQL",
+        rephrased=False, reason="numbers must match the original exactly")
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.rephrase_bullets", return_value=[rejected]):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(out), "--polish"])
+    assert result.exit_code == 0, result.output
+    assert "Wrote Airflow ETL jobs loading PostgreSQL" in out.read_text()
+    manifest = json.loads((tmp_path / "resume.html.manifest.json").read_text())
+    assert manifest["verbatim"] is True
+    assert "numbers must match" in result.output
+
+
+def test_tailor_without_polish_never_calls_llm(
+        cli_db, db_conn, analyze_config, tmp_path):
+    c = _seed_job(db_conn, "Python required.")
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.rephrase_bullets") as mock_rp:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(tmp_path / "r.html")])
+    assert result.exit_code == 0, result.output
+    mock_rp.assert_not_called()
+
+
 def test_tailor_unknown_job_errors(cli_db, db_conn, analyze_config, tmp_path):
     with patch("main.init_db", return_value=cli_db), \
          patch("main.load_config", return_value=analyze_config):

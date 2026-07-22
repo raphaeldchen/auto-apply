@@ -23,7 +23,14 @@ _env = Environment(
 )
 
 
-def render_resume_html(fact_base: FactBase, plan: SelectionPlan) -> str:
+def render_resume_html(
+    fact_base: FactBase,
+    plan: SelectionPlan,
+    text_overrides: dict[str, str] | None = None,
+) -> str:
+    """text_overrides maps bullet id → verified rephrase; callers must only
+    pass text that has passed verify_rephrase."""
+    overrides = text_overrides or {}
     profile = fact_base.profile
     exp_meta = {e.id: e for e in profile.experience}
     proj_meta = {p.id: p for p in profile.projects}
@@ -32,7 +39,8 @@ def render_resume_html(fact_base: FactBase, plan: SelectionPlan) -> str:
     for section in plan.sections:
         if not section.bullet_ids:
             continue
-        bullets = [fact_base.bullets[bid].text for bid in section.bullet_ids]
+        bullets = [overrides.get(bid, fact_base.bullets[bid].text)
+                   for bid in section.bullet_ids]
         if section.section_id in exp_meta:
             e = exp_meta[section.section_id]
             experience.append({

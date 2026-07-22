@@ -153,3 +153,16 @@ def test_update_job_filter_status(db_conn):
     job, company = matched[0]
     assert job.llm_score == 8.5
     assert job.llm_reason == "strong match"
+
+def test_get_company_returns_company_with_tier(db_conn):
+    from pipeline.db import get_company
+    c = upsert_company(db_conn, Company(name="OpenAI2", slug="openai2",
+                                        ats_type="greenhouse", board_token="openai2",
+                                        status="active", tier="reach"))
+    found = get_company(db_conn, c.id)
+    assert found.name == "OpenAI2"
+    assert found.tier == "reach"
+
+def test_get_company_missing_returns_none(db_conn):
+    from pipeline.db import get_company
+    assert get_company(db_conn, 9999) is None

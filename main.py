@@ -1,16 +1,18 @@
 import asyncio
 import json
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
 import click
 from urllib.parse import urlparse
 from pipeline.config import load_config
-from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs, set_company_tier, get_job
+from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs, set_company_tier, get_job, get_company
 from pipeline.materials.coverage import build_coverage
 from pipeline.materials.jd_analyzer import analyze_jd
 from pipeline.materials.profile import build_fact_base, load_profile
 from pipeline.materials.renderer import render_pdf, render_resume_html
+from pipeline.materials.rephrase import rephrase_bullets
 from pipeline.materials.selector import select_bullets
 from pipeline.discovery.detector import detect_ats
 from pipeline.discovery.poller import _CLIENT_MAP
@@ -224,13 +226,17 @@ def analyze(job_id, company_id, days):
 @click.option("--company-id", type=int, required=True, help="Company id for --job-id")
 @click.option("--out", default="resume.html", show_default=True,
               help="Output path (.html or .pdf); a provenance manifest is written alongside")
-def tailor(job_id, company_id, out):
-    """Build a tailored resume for one job — extractive only, text verbatim from profile."""
+@click.option("--polish", is_flag=True, default=False,
+              help="Rephrase selected bullets with the company tier's Claude model "
+                   "(every rephrase verified against the fact base; fails closed to verbatim)")
+def tailor(job_id, company_id, out, polish):
+    """Build a tailored resume for one job; all content verified against the profile."""
     config = load_config(CONFIG_PATH)
     fact_base = build_fact_base(load_profile(config.user.profile_path))
     conn = init_db(DB_PATH)
     try:
         job = get_job(conn, job_id, company_id)
+        company = get_company(conn, company_id)
     finally:
         conn.close()
     if job is None:
@@ -242,13 +248,24 @@ def tailor(job_id, company_id, out):
 
     analysis = analyze_jd(job.description, extra_terms=fact_base.skills)
     plan = select_bullets(analysis, fact_base)
-    html = render_resume_html(fact_base, plan)
+    selected = [bid for s in plan.sections for bid in s.bullet_ids]
+
+    overrides = None
+    polish_info = None
+    if polish:
+        tier = company.tier if company else "standard"
+        model = config.generation.model_for(tier)
+        results = rephrase_bullets(selected, fact_base, analysis, model=model)
+        overrides = {r.bullet_id: r.text for r in results if r.rephrased} or None
+        polish_info = {"model": model, "tier": tier,
+                       "rephrases": [asdict(r) for r in results]}
+
+    html = render_resume_html(fact_base, plan, overrides)
     if out.endswith(".pdf"):
         render_pdf(html, out)
     else:
         Path(out).write_text(html)
 
-    selected = [bid for s in plan.sections for bid in s.bullet_ids]
     manifest_path = f"{out}.manifest.json"
     Path(manifest_path).write_text(json.dumps({
         "job_id": job_id,
@@ -259,10 +276,20 @@ def tailor(job_id, company_id, out):
         "skills_order": plan.skills_order,
         "covered_keywords": plan.covered,
         "jd_keywords": [k.canonical for k in analysis.keywords],
-        "verbatim": True,
+        "verbatim": overrides is None,
+        "polish": polish_info,
     }, indent=2))
 
-    click.echo(f"✓ {out} — {len(selected)}/{len(fact_base.bullets)} bullets, all text verbatim from profile")
+    click.echo(f"✓ {out} — {len(selected)}/{len(fact_base.bullets)} bullets")
+    if polish_info:
+        n = sum(1 for r in polish_info["rephrases"] if r["rephrased"])
+        click.echo(f"  polish: {n}/{len(selected)} bullets rephrased "
+                   f"({polish_info['model']}, {polish_info['tier']} tier)")
+        for r in polish_info["rephrases"]:
+            if not r["rephrased"]:
+                click.echo(f"  ~ {r['bullet_id']} kept verbatim: {r['reason']}")
+    else:
+        click.echo("  all text verbatim from profile")
     click.echo(f"  covers {len(plan.covered)}/{len(analysis.keywords)} JD keywords: {', '.join(plan.covered) or '—'}")
     click.echo(f"  manifest: {manifest_path}")
 

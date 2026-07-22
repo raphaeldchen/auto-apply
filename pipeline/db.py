@@ -99,6 +99,13 @@ def get_job(conn: sqlite3.Connection, job_id: str, company_id: int) -> Job | Non
     return _row_to_job(row) if row else None
 
 
+def get_company(conn: sqlite3.Connection, company_id: int) -> Company | None:
+    row = conn.execute(
+        "SELECT * FROM companies WHERE id = ?", (company_id,)
+    ).fetchone()
+    return _row_to_company(row) if row else None
+
+
 def set_company_tier(conn: sqlite3.Connection, name: str, tier: str) -> bool:
     cur = conn.execute("UPDATE companies SET tier = ? WHERE name = ?", (tier, name))
     conn.commit()

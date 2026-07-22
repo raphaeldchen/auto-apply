@@ -112,6 +112,16 @@ def test_html_escapes_markup_in_profile_text(tmp_path):
     assert "&lt;script&gt;" in html
 
 
+def test_text_overrides_replace_bullet_text(fact_base, plan):
+    html = render_resume_html(
+        fact_base, plan,
+        text_overrides={"acme.0": "Engineered a churn model in PyTorch and Python"})
+    assert "Engineered a churn model in PyTorch and Python" in html
+    assert "Built a churn model in PyTorch and Python" not in html
+    # untouched bullets still render verbatim
+    assert "Built a recommender in Python with pandas" in html
+
+
 def test_render_pdf_drives_chromium_with_html(tmp_path):
     out = tmp_path / "resume.pdf"
     with patch("pipeline.materials.renderer.sync_playwright") as sp:
