@@ -459,6 +459,73 @@ def test_questions_unknown_job_errors(cli_db, db_conn, analyze_config):
     assert "No job" in result.output
 
 
+def test_apply_fills_form_and_reports(cli_db, db_conn, analyze_config, tmp_path):
+    from pipeline.apply.executor import FillReport
+    from pipeline.apply.questions import FormQuestion
+
+    c = _seed_job(db_conn, "Python required.")
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"%PDF-fake")
+    qs = [
+        FormQuestion(label="First Name", name="first_name",
+                     type="input_text", required=True, options=[]),
+        FormQuestion(label="Resume", name="resume",
+                     type="input_file", required=True, options=[]),
+        FormQuestion(label="Why us?", name="q9", type="textarea",
+                     required=True, options=[]),
+    ]
+    report = FillReport(filled=["First Name", "Resume"],
+                        skipped=["Why us? — needs_input"], missing=[])
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.fetch_greenhouse_questions", return_value=qs), \
+         patch("main.run_application", return_value=report) as mock_run:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["apply", "--job-id", "j1", "--company-id", str(c.id),
+                  "--resume", str(resume)])
+    assert result.exit_code == 0, result.output
+    url = mock_run.call_args.args[0]
+    assert "stripe" in url and "j1" in url
+    assert mock_run.call_args.args[2] == {"resume": str(resume)}
+    out = result.output
+    assert "Why us?" in out          # pre-launch warning about the gap
+    assert "2 filled" in out
+    assert "submit" in out.lower()   # never auto-submitted; user guidance
+    mock_run.assert_called_once()
+
+
+def test_apply_missing_resume_file_warns_and_skips_upload(
+        cli_db, db_conn, analyze_config, tmp_path):
+    from pipeline.apply.executor import FillReport
+
+    c = _seed_job(db_conn, "Python required.")
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.fetch_greenhouse_questions", return_value=[]), \
+         patch("main.run_application", return_value=FillReport()) as mock_run:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["apply", "--job-id", "j1", "--company-id", str(c.id),
+                  "--resume", str(tmp_path / "nope.pdf")])
+    assert "not found" in result.output.lower()
+    assert mock_run.call_args.args[2] == {}
+
+
+def test_apply_unsupported_ats_reports(cli_db, db_conn, analyze_config):
+    c = upsert_company(db_conn, Company(
+        name="Lever Co", slug="lv", ats_type="lever",
+        board_token="lv", status="active"))
+    upsert_jobs(db_conn, [Job(id="l1", company_id=c.id, title="ML Intern",
+                              url=None, location=None, description="x")])
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["apply", "--job-id", "l1", "--company-id", str(c.id)])
+    assert "not supported" in result.output.lower()
+
+
 def test_tailor_unknown_job_errors(cli_db, db_conn, analyze_config, tmp_path):
     with patch("main.init_db", return_value=cli_db), \
          patch("main.load_config", return_value=analyze_config):

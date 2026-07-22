@@ -24,6 +24,8 @@ class PlanRow:
     name: str
     required: bool
     status: str  # auto | attachment | answered | sensitive | needs_input
+    type: str = ""  # form field type, for the executor (fill vs select)
+    options: list[str] = field(default_factory=list)
     answer: str | None = None
     source: str | None = None
     note: str | None = None
@@ -62,7 +64,8 @@ def plan_application(
 
 def _plan_question(q: FormQuestion, book: AnswerBook,
                    values: dict[str, str]) -> PlanRow:
-    base = dict(label=q.label, name=q.name, required=q.required)
+    base = dict(label=q.label, name=q.name, required=q.required,
+                type=q.type, options=q.options)
 
     if q.name in values and values[q.name]:
         return PlanRow(**base, status="auto", answer=values[q.name],

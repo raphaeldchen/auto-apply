@@ -117,3 +117,13 @@ def test_unknown_question_needs_input(profile, book):
     plan = plan_application([_q("Why do you want to work here?")],
                             book, profile)
     assert plan.rows[0].status == "needs_input"
+
+
+def test_rows_carry_field_type_and_options_for_executor(profile, book):
+    plan = plan_application(
+        [_q("Are you authorized to work in the US?",
+            type="multi_value_single_select", options=["Yes", "No"])],
+        book, profile)
+    row = plan.rows[0]
+    assert row.type == "multi_value_single_select"
+    assert row.options == ["Yes", "No"]

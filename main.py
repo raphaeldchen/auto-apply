@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 from urllib.parse import urlparse
 from pipeline.apply.answers import load_answers
+from pipeline.apply.executor import run_application
 from pipeline.apply.planner import plan_application
 from pipeline.apply.questions import fetch_greenhouse_questions
 from pipeline.config import load_config
@@ -411,6 +412,76 @@ def questions(job_id, company_id):
             slug = re.sub(r"[^a-z0-9]+", "-", row.label.lower()).strip("-")[:40]
             pattern = row.label.lower().rstrip("?.! ").replace('"', "")
             click.echo(f'  - id: {slug}\n    patterns: ["{pattern}"]\n    answer: ""')
+
+
+@cli.command()
+@click.option("--job-id", required=True, help="ATS job id")
+@click.option("--company-id", type=int, required=True, help="Company id for --job-id")
+@click.option("--resume", "resume_path", default=None,
+              help="Resume PDF to upload (default: user.resume_path from config)")
+@click.option("--letter", "letter_path", default=None,
+              help="Cover letter PDF to upload")
+@click.option("--headless", is_flag=True, default=False,
+              help="Fill without a visible browser (no review possible; still never submits)")
+def apply(job_id, company_id, resume_path, letter_path, headless):
+    """Fill a job's application form in a browser. You review and click submit."""
+    config = load_config(CONFIG_PATH)
+    profile = load_profile(config.user.profile_path)
+    book = load_answers(config.user.answers_path)
+    conn = init_db(DB_PATH)
+    try:
+        job = get_job(conn, job_id, company_id)
+        company = get_company(conn, company_id)
+    finally:
+        conn.close()
+    if job is None:
+        click.echo(f"No job '{job_id}' for company {company_id}.")
+        return
+    ats = company.ats_type if company else None
+    if ats != "greenhouse":
+        click.echo(f"Apply not supported for '{ats}' yet (greenhouse only).")
+        return
+
+    questions = fetch_greenhouse_questions(company.board_token, job_id)
+    plan = plan_application(questions, book, profile)
+
+    gaps = [r for r in plan.rows if r.status in ("needs_input", "sensitive")]
+    if gaps:
+        click.echo("You'll need to complete these in the browser yourself:")
+        for row in gaps:
+            click.echo(f"  {_PLAN_MARKS[row.status]} {row.label}"
+                       + (f" — {row.note}" if row.note else ""))
+
+    attachments = {}
+    resume = resume_path or config.user.resume_path
+    if resume:
+        if Path(resume).exists():
+            attachments["resume"] = str(resume)
+        else:
+            click.echo(f"⚠ resume file not found: {resume} — skipping upload")
+    if letter_path:
+        if Path(letter_path).exists():
+            attachments["cover_letter"] = str(letter_path)
+        else:
+            click.echo(f"⚠ letter file not found: {letter_path} — skipping upload")
+
+    url = job.url or f"https://boards.greenhouse.io/{company.board_token}/jobs/{job_id}"
+    click.echo(f"Opening {url} …")
+    pause = None
+    if not headless:
+        pause = lambda: click.pause(  # noqa: E731
+            "Review the form, complete anything skipped, and click submit "
+            "yourself. Press any key here to close the browser...")
+    report = run_application(url, plan.rows, attachments,
+                             headless=headless, pause=pause)
+
+    click.echo(f"✓ {len(report.filled)} filled, {len(report.skipped)} skipped, "
+               f"{len(report.failed)} failed, {len(report.missing)} not found on page")
+    for item in report.failed:
+        click.echo(f"  ! {item}")
+    for label in report.missing:
+        click.echo(f"  ? not found on page: {label}")
+    click.echo("Nothing was submitted — submission stays in your hands.")
 
 
 def _print_coverage_detail(title, description, fact_base):

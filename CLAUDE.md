@@ -74,6 +74,7 @@ run          →  run_pipeline()
 | `pipeline/apply/answers.py` | Answer memory (`answers.yaml`): pattern→answer entries, EEO/sensitive question detection |
 | `pipeline/apply/questions.py` | Greenhouse `?questions=true` form-schema fetcher → `FormQuestion` |
 | `pipeline/apply/planner.py` | Questions × memory × profile → fill plan (auto/attachment/answered/sensitive/needs_input); never guesses |
+| `pipeline/apply/executor.py` | Playwright form filler: read-back verified fills + hydration settle passes; NEVER clicks submit, never touches CAPTCHAs |
 | `pipeline/notifier.py` | Terminal digest printer |
 | `pipeline/scheduler.py` | APScheduler wrapper for daily runs |
 | `models/` | Plain dataclasses: `Company`, `Job`, `RawJob`, `DigestResult`, `CompanyDigest`, `Profile`/`FactBase` |
@@ -89,4 +90,6 @@ run          →  run_pipeline()
 
 `generation.tiers` (optional) maps company tier → Claude model for `tailor --polish`; defaults are reach=`claude-opus-4-8`, target=`claude-sonnet-5`, standard=`claude-haiku-4-5`. Partial overrides merge with defaults. Requires `ANTHROPIC_API_KEY`; without it, polish fails closed to the verbatim resume.
 
-`user.answers_path` (default `answers.yaml`) is the answer memory used by the `questions` command; empty answers are treated as pending and never filled, and EEO/self-identification questions are only answered if the user explicitly stored an entry.
+`user.answers_path` (default `answers.yaml`) is the answer memory used by the `questions` and `apply` commands; empty answers are treated as pending and never filled, and EEO/self-identification questions are only answered if the user explicitly stored an entry.
+
+The `apply` command fills the hosted Greenhouse form in a headed browser and then pauses — the human reviews and clicks submit. The executor must never click submit or interact with CAPTCHAs; every fill is verified by read-back with settle passes (modern Greenhouse React boards hydrate late and wipe programmatic values — fields have `#id` but often no `name` attribute).
