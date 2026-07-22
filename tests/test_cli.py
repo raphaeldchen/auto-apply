@@ -201,3 +201,75 @@ def test_list_companies_shows_tier(cli_db, db_conn):
         result = runner.invoke(cli, ["list-companies"])
     assert result.exit_code == 0
     assert "reach" in result.output
+
+
+def test_tailor_writes_html_and_manifest(cli_db, db_conn, analyze_config, tmp_path):
+    import json
+
+    c = _seed_job(db_conn, "Python and Airflow required. Rust a plus.")
+    out = tmp_path / "resume.html"
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    html = out.read_text()
+    assert "Wrote Airflow ETL jobs loading PostgreSQL" in html
+    manifest = json.loads((tmp_path / "resume.html.manifest.json").read_text())
+    assert manifest["job_id"] == "j1"
+    assert manifest["selected_bullets"] == ["acme.0"]
+    assert "Airflow" in manifest["covered_keywords"]
+    assert "Python" in manifest["covered_keywords"]
+    assert "Rust" not in manifest["covered_keywords"]
+    assert manifest["verbatim"] is True
+
+
+def test_tailor_pdf_output_calls_renderer(cli_db, db_conn, analyze_config, tmp_path):
+    c = _seed_job(db_conn, "Python required.")
+    out = tmp_path / "resume.pdf"
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.render_pdf") as mock_pdf:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    mock_pdf.assert_called_once()
+    assert mock_pdf.call_args.args[1] == str(out)
+
+
+def test_tailor_prints_selection_summary(cli_db, db_conn, analyze_config, tmp_path):
+    c = _seed_job(db_conn, "Python and Airflow required. Rust a plus.")
+    out = tmp_path / "resume.html"
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(out)])
+    assert "verbatim" in result.output.lower()
+    assert "2/3" in result.output  # Python + Airflow covered, Rust not
+
+
+def test_tailor_unknown_job_errors(cli_db, db_conn, analyze_config, tmp_path):
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "nope", "--company-id", "1",
+                  "--out", str(tmp_path / "r.html")])
+    assert "No job" in result.output
+
+
+def test_tailor_job_without_description_errors(cli_db, db_conn, analyze_config, tmp_path):
+    c = _seed_job(db_conn, None)
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["tailor", "--job-id", "j1", "--company-id", str(c.id),
+                  "--out", str(tmp_path / "r.html")])
+    assert "no description" in result.output.lower()

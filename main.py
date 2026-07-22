@@ -1,4 +1,8 @@
 import asyncio
+import json
+from datetime import datetime
+from pathlib import Path
+
 import click
 from urllib.parse import urlparse
 from pipeline.config import load_config
@@ -6,6 +10,8 @@ from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_
 from pipeline.materials.coverage import build_coverage
 from pipeline.materials.jd_analyzer import analyze_jd
 from pipeline.materials.profile import build_fact_base, load_profile
+from pipeline.materials.renderer import render_pdf, render_resume_html
+from pipeline.materials.selector import select_bullets
 from pipeline.discovery.detector import detect_ats
 from pipeline.discovery.poller import _CLIENT_MAP
 from pipeline.discovery.seed import load_seed_companies, register_seed_companies
@@ -211,6 +217,54 @@ def analyze(job_id, company_id, days):
                 )
     finally:
         conn.close()
+
+
+@cli.command()
+@click.option("--job-id", required=True, help="ATS job id")
+@click.option("--company-id", type=int, required=True, help="Company id for --job-id")
+@click.option("--out", default="resume.html", show_default=True,
+              help="Output path (.html or .pdf); a provenance manifest is written alongside")
+def tailor(job_id, company_id, out):
+    """Build a tailored resume for one job — extractive only, text verbatim from profile."""
+    config = load_config(CONFIG_PATH)
+    fact_base = build_fact_base(load_profile(config.user.profile_path))
+    conn = init_db(DB_PATH)
+    try:
+        job = get_job(conn, job_id, company_id)
+    finally:
+        conn.close()
+    if job is None:
+        click.echo(f"No job '{job_id}' for company {company_id}.")
+        return
+    if not job.description:
+        click.echo(f"{job.title}: no description stored — run the pipeline to fetch it.")
+        return
+
+    analysis = analyze_jd(job.description, extra_terms=fact_base.skills)
+    plan = select_bullets(analysis, fact_base)
+    html = render_resume_html(fact_base, plan)
+    if out.endswith(".pdf"):
+        render_pdf(html, out)
+    else:
+        Path(out).write_text(html)
+
+    selected = [bid for s in plan.sections for bid in s.bullet_ids]
+    manifest_path = f"{out}.manifest.json"
+    Path(manifest_path).write_text(json.dumps({
+        "job_id": job_id,
+        "company_id": company_id,
+        "job_title": job.title,
+        "generated_at": datetime.now().isoformat(),
+        "selected_bullets": selected,
+        "skills_order": plan.skills_order,
+        "covered_keywords": plan.covered,
+        "jd_keywords": [k.canonical for k in analysis.keywords],
+        "verbatim": True,
+    }, indent=2))
+
+    click.echo(f"✓ {out} — {len(selected)}/{len(fact_base.bullets)} bullets, all text verbatim from profile")
+    click.echo(f"  covers {len(plan.covered)}/{len(analysis.keywords)} JD keywords: {', '.join(plan.covered) or '—'}")
+    click.echo(f"  manifest: {manifest_path}")
 
 
 def _print_coverage_detail(title, description, fact_base):
