@@ -6,6 +6,7 @@ class UserConfig:
     desired_role: str
     desired_level: str
     resume_path: str
+    profile_path: str = "profile.yaml"
 
 @dataclass
 class FilterConfig:

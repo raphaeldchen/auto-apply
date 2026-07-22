@@ -2,14 +2,17 @@ import asyncio
 import click
 from urllib.parse import urlparse
 from pipeline.config import load_config
-from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs
+from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs, set_company_tier, get_job
+from pipeline.materials.coverage import build_coverage
+from pipeline.materials.jd_analyzer import analyze_jd
+from pipeline.materials.profile import build_fact_base, load_profile
 from pipeline.discovery.detector import detect_ats
 from pipeline.discovery.poller import _CLIENT_MAP
 from pipeline.discovery.seed import load_seed_companies, register_seed_companies
 from pipeline.runner import run_pipeline
 from pipeline.notifier import print_digest
 from pipeline.scheduler import start_scheduler
-from models.company import Company
+from models.company import Company, TIERS
 
 DB_PATH = "auto_apply.db"
 CONFIG_PATH = "config.yaml"
@@ -22,7 +25,9 @@ def cli():
 @click.option("--name", default=None, help="Company name (derived from URL if omitted)")
 @click.option("--slug", default=None, help="ATS board token or full Workday URL")
 @click.option("--ats-type", "ats_type", default=None, help="Skip detection and use this ATS type (e.g. workday)")
-def add_company(name, slug, ats_type):
+@click.option("--tier", type=click.Choice(TIERS), default="standard", show_default=True,
+              help="Desirability tier — drives generation model and care budget")
+def add_company(name, slug, ats_type, tier):
     """Detect and register a company's ATS."""
     if slug and slug.startswith("https://") and "myworkdayjobs.com" in slug:
         parsed = urlparse(slug)
@@ -51,6 +56,7 @@ def add_company(name, slug, ats_type):
                 ats_type=ats_type,
                 board_token=slug,
                 status="active",
+                tier=tier,
             )
             upsert_company(conn, company)
         else:
@@ -66,6 +72,7 @@ def add_company(name, slug, ats_type):
                 ats_type=detected_ats,
                 board_token=board_token,
                 status="active",
+                tier=tier,
             )
             upsert_company(conn, company)
     finally:
@@ -112,7 +119,22 @@ def list_companies():
         for c in companies:
             ats = c.ats_type or "unsupported"
             token = c.board_token or "-"
-            click.echo(f"  {c.name:<30} {ats:<12} {token}")
+            click.echo(f"  {c.name:<30} {ats:<12} {c.tier:<10} {token}")
+    finally:
+        conn.close()
+
+@cli.command()
+@click.option("--name", required=True, help="Company name")
+@click.option("--tier", type=click.Choice(TIERS), required=True,
+              help="Desirability tier — drives generation model and care budget")
+def set_tier(name, tier):
+    """Set a company's desirability tier."""
+    conn = init_db(DB_PATH)
+    try:
+        if set_company_tier(conn, name, tier):
+            click.echo(f"✓ {name} → {tier}")
+        else:
+            click.echo(f"No company named '{name}'. Use `list-companies` to see registered companies.")
     finally:
         conn.close()
 
@@ -150,6 +172,71 @@ def show_matches(days):
                 click.echo(f"    {job.url}")
     finally:
         conn.close()
+
+_STATUS_MARKS = {"have": "✓", "partial": "~", "lack": "✗"}
+
+@cli.command()
+@click.option("--job-id", default=None, help="Analyze one job (requires --company-id)")
+@click.option("--company-id", type=int, default=None, help="Company id for --job-id")
+@click.option("--days", default=7, show_default=True, help="Summary mode: look back N days")
+def analyze(job_id, company_id, days):
+    """Coverage report: what each matched JD wants vs. what your profile has."""
+    if (job_id is None) != (company_id is None):
+        raise click.UsageError("--job-id and --company-id must be used together")
+    config = load_config(CONFIG_PATH)
+    fact_base = build_fact_base(load_profile(config.user.profile_path))
+    conn = init_db(DB_PATH)
+    try:
+        if job_id is not None:
+            job = get_job(conn, job_id, company_id)
+            if job is None:
+                click.echo(f"No job '{job_id}' for company {company_id}.")
+                return
+            _print_coverage_detail(job.title, job.description, fact_base)
+        else:
+            results = get_matched_jobs(conn, days)
+            if not results:
+                click.echo(f"No matched jobs in the last {days} days.")
+                return
+            for job, company in results:
+                if not job.description:
+                    click.echo(f"  [{company.name}] {job.title} — no description stored")
+                    continue
+                analysis = analyze_jd(job.description, extra_terms=fact_base.skills)
+                report = build_coverage(analysis, fact_base)
+                have = sum(1 for r in report.rows if r.status == "have")
+                click.echo(
+                    f"  [{company.name}] {job.title} — coverage {report.score:.0%} "
+                    f"(have {have}/{len(report.rows)} keywords)"
+                )
+    finally:
+        conn.close()
+
+
+def _print_coverage_detail(title, description, fact_base):
+    if not description:
+        click.echo(f"{title}: no description stored — run the pipeline to fetch it.")
+        return
+    analysis = analyze_jd(description, extra_terms=fact_base.skills)
+    report = build_coverage(analysis, fact_base)
+    click.echo(f"{title} — coverage {report.score:.0%}")
+    meta = []
+    if analysis.level:
+        meta.append(f"level: {analysis.level}")
+    if analysis.years_experience is not None:
+        meta.append(f"years: {analysis.years_experience}+")
+    if analysis.degrees:
+        meta.append(f"degrees: {', '.join(analysis.degrees)}")
+    if meta:
+        click.echo("  " + "   ".join(meta))
+    if analysis.clearance_required:
+        click.echo("  ⚠ security clearance required")
+    if analysis.sponsorship_mentioned:
+        click.echo("  ⚠ mentions sponsorship — read the JD before applying")
+    for row in report.rows:
+        evidence = f"   ({', '.join(row.evidence)})" if row.evidence else ""
+        click.echo(f"  {_STATUS_MARKS[row.status]} {row.canonical:<28} ×{row.jd_count}{evidence}")
+
 
 if __name__ == "__main__":
     cli()

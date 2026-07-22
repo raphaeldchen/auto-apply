@@ -12,3 +12,22 @@ def db_conn():
     conn.commit()
     yield conn
     conn.close()
+
+
+class _NoCloseConn:
+    """Proxy that ignores close() so CLI commands can't tear down the shared
+    in-memory fixture between invocations within one test."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def cli_db(db_conn):
+    return _NoCloseConn(db_conn)

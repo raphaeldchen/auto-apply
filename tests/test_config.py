@@ -30,3 +30,7 @@ def test_load_config_filter_fields(config_file):
     config = load_config(config_file)
     assert config.filter.llm_score_threshold == 7.0
     assert "intern" in config.filter.exclude_patterns
+
+def test_load_config_profile_path_defaults(config_file):
+    config = load_config(config_file)
+    assert config.user.profile_path == "profile.yaml"
