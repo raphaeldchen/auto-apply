@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }} — Cover Letter</title>
+<style>
+  @page { size: letter; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    color: #1a1a1a;
+    padding: 0.8in 0.9in;
+  }
+  header { margin-bottom: 18pt; }
+  h1 { font-size: 15pt; font-weight: 700; letter-spacing: 0.4pt; }
+  .contact { font-size: 9pt; color: #333; margin-top: 2pt; }
+  .contact span + span::before { content: "  ·  "; white-space: pre; }
+  .date { margin-bottom: 12pt; }
+  .re { font-weight: 700; margin-bottom: 12pt; }
+  .greeting { margin-bottom: 10pt; }
+  .para { margin-bottom: 10pt; text-align: justify; }
+  .closing { margin-top: 16pt; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ name }}</h1>
+  <div class="contact">
+    {%- for item in contact %}<span>{{ item }}</span>{% endfor -%}
+    {%- for url in links %}<span>{{ url }}</span>{% endfor -%}
+  </div>
+</header>
+<div class="date">{{ date_line }}</div>
+<div class="re">Re: {{ job_title }}</div>
+<p class="greeting">Dear {{ company_name }} Hiring Team,</p>
+{% for para in paragraphs %}
+<p class="para">{{ para }}</p>
+{% endfor %}
+<p class="closing">Sincerely,<br>{{ name }}</p>
+</body>
+</html>

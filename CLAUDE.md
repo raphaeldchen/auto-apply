@@ -62,11 +62,34 @@ run          →  run_pipeline()
 | `pipeline/discovery/clients/` | One module per ATS (Greenhouse, Lever, Ashby) exposing `fetch_jobs(token)` |
 | `pipeline/filter/keyword.py` | Regex-based include/exclude/level pattern matching |
 | `pipeline/filter/llm_scorer.py` | Ollama `/api/chat` call returning `(score, reason)` |
+| `pipeline/materials/aliases.py` | Skill lexicon (`aliases.yaml`) matcher: canonical terms, boundary-aware, case-sensitive short terms |
+| `pipeline/materials/profile.py` | Loads `profile.yaml` → `FactBase` of ID-addressable bullets (`{section_id}.{index}`) |
+| `pipeline/materials/jd_analyzer.py` | Regex JD analysis: keywords, years, degrees, level, clearance/sponsorship flags |
+| `pipeline/materials/coverage.py` | JD keywords × fact base → have/partial/lack rows + weighted score |
+| `pipeline/materials/selector.py` | Deterministic greedy bullet selection (min-per-section → marginal coverage → fill) |
+| `pipeline/materials/renderer.py` | Jinja2 (autoescaped) resume HTML + Playwright Chromium PDF |
+| `pipeline/materials/verify.py` | Rephrase verifier: numeric multiset invariance, entity whitelist, proper-noun check |
+| `pipeline/materials/rephrase.py` | Anthropic Messages call proposing rephrases; every candidate verified, fail-closed to verbatim |
+| `pipeline/materials/letter.py` | Fact-cited cover-letter generation: verify → one retry with violations fed back → fail closed to no letter |
+| `pipeline/apply/answers.py` | Answer memory (`answers.yaml`): pattern→answer entries, EEO/sensitive question detection |
+| `pipeline/apply/questions.py` | Greenhouse `?questions=true` form-schema fetcher → `FormQuestion` |
+| `pipeline/apply/planner.py` | Questions × memory × profile → fill plan (auto/attachment/answered/sensitive/needs_input); never guesses |
+| `pipeline/apply/executor.py` | Playwright form filler: read-back verified fills + hydration settle passes; NEVER clicks submit, never touches CAPTCHAs |
 | `pipeline/notifier.py` | Terminal digest printer |
 | `pipeline/scheduler.py` | APScheduler wrapper for daily runs |
-| `models/` | Plain dataclasses: `Company`, `Job`, `RawJob`, `DigestResult`, `CompanyDigest` |
+| `models/` | Plain dataclasses: `Company`, `Job`, `RawJob`, `DigestResult`, `CompanyDigest`, `Profile`/`FactBase` |
 | `db/schema.sql` | SQLite DDL for `companies`, `jobs`, `applications` tables |
+
+### Materials pipeline invariant
+
+"LLM proposes, harness disposes": generated resumes and cover letters may only contain facts from `profile.yaml` (the fact base). The `tailor` command is fully deterministic by default; `--polish` adds LLM rephrasing where every candidate must pass `verify_rephrase` or that bullet falls back to verbatim. The `letter` command requires every paragraph to cite bullet ids/skills; `verify_letter` checks terms, numbers, company/title presence, and cross-company contamination — an unverifiable letter is simply not produced. Never bypass the verifiers or add free-form LLM rewriting. Every output gets a `{out}.manifest.json` provenance record.
 
 ### Config (`config.yaml`)
 
 `filter.llm_score_threshold` controls the cutoff (0–10) for what counts as a match. The LLM model and Ollama base URL are under `llm:`. All filter patterns are case-insensitive substring matches applied to the job title.
+
+`generation.tiers` (optional) maps company tier → Claude model for `tailor --polish`; defaults are reach=`claude-opus-4-8`, target=`claude-sonnet-5`, standard=`claude-haiku-4-5`. Partial overrides merge with defaults. Requires `ANTHROPIC_API_KEY`; without it, polish fails closed to the verbatim resume.
+
+`user.answers_path` (default `answers.yaml`) is the answer memory used by the `questions` and `apply` commands; empty answers are treated as pending and never filled, and EEO/self-identification questions are only answered if the user explicitly stored an entry.
+
+The `apply` command fills the hosted Greenhouse form in a headed browser and then pauses — the human reviews and clicks submit. The executor must never click submit or interact with CAPTCHAs; every fill is verified by read-back with settle passes (modern Greenhouse React boards hydrate late and wipe programmatic values — fields have `#id` but often no `name` attribute).

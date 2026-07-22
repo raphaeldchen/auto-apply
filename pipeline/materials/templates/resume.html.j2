@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }} — Resume</title>
+<style>
+  @page { size: letter; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.35;
+    color: #1a1a1a;
+    padding: 0.55in 0.65in;
+  }
+  header { text-align: center; margin-bottom: 10pt; }
+  h1 { font-size: 19pt; font-weight: 700; letter-spacing: 0.5pt; }
+  .contact { font-size: 9pt; color: #333; margin-top: 3pt; }
+  .contact span + span::before { content: "  ·  "; white-space: pre; }
+  h2 {
+    font-size: 10pt;
+    text-transform: uppercase;
+    letter-spacing: 1.2pt;
+    border-bottom: 0.75pt solid #1a1a1a;
+    padding-bottom: 1.5pt;
+    margin: 9pt 0 5pt;
+  }
+  .skills { font-size: 9.5pt; }
+  .entry { margin-bottom: 6pt; }
+  .entry-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .entry-title { font-weight: 700; }
+  .entry-sub { font-style: italic; }
+  .dates { font-size: 9pt; color: #333; white-space: nowrap; }
+  ul { margin: 2pt 0 0 14pt; }
+  li { margin-bottom: 1.5pt; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ name }}</h1>
+  <div class="contact">
+    {%- for item in contact %}<span>{{ item }}</span>{% endfor -%}
+    {%- for url in links %}<span>{{ url }}</span>{% endfor -%}
+  </div>
+</header>
+
+{% if skills %}
+<h2>Skills</h2>
+<div class="skills">{{ skills | join(" · ") }}</div>
+{% endif %}
+
+{% if experience %}
+<h2>Experience</h2>
+{% for e in experience %}
+<div class="entry">
+  <div class="entry-head">
+    <span><span class="entry-title">{{ e.company }}</span> — <span class="entry-sub">{{ e.title }}</span></span>
+    {% if e.start %}<span class="dates">{{ e.start }} – {{ e.end or "Present" }}</span>{% endif %}
+  </div>
+  <ul>
+    {% for bullet in e.bullets %}<li>{{ bullet }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if projects %}
+<h2>Projects</h2>
+{% for p in projects %}
+<div class="entry">
+  <div class="entry-head"><span class="entry-title">{{ p.name }}</span></div>
+  <ul>
+    {% for bullet in p.bullets %}<li>{{ bullet }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if education %}
+<h2>Education</h2>
+{% for ed in education %}
+<div class="entry">
+  <div class="entry-head">
+    <span><span class="entry-title">{{ ed.school }}</span> — {{ ed.degree }}</span>
+    {% if ed.grad %}<span class="dates">{{ ed.grad }}</span>{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+</body>
+</html>

@@ -1,0 +1,46 @@
+# Copy to profile.yaml and fill in. This file is the single source of truth
+# for everything the bot may claim about you — generated resumes and cover
+# letters can only draw from facts recorded here.
+#
+# Every experience/project entry needs a unique `id` (kebab-case). Bullets are
+# addressed as {id}.{index} in coverage reports and provenance manifests, so
+# append new bullets rather than reordering when possible.
+
+personal:
+  name: Your Name
+  email: you@example.com
+  phone: "+1 555 555 5555"
+  location: City, ST
+  links:
+    github: https://github.com/you
+    linkedin: https://linkedin.com/in/you
+
+skills:
+  - Python
+  - SQL
+  - PyTorch
+  - pandas
+  - scikit-learn
+  - AWS
+  - Docker
+
+experience:
+  - id: acme-ds-intern
+    company: Acme Corp
+    title: Data Science Intern
+    start: 2025-06
+    end: 2025-09
+    bullets:
+      - Built a churn-prediction model in PyTorch that improved retention by 12%
+      - Wrote Airflow ETL jobs processing 2M rows daily into PostgreSQL
+
+projects:
+  - id: rec-sys
+    name: Movie Recommender
+    bullets:
+      - Trained a collaborative-filtering model on 25M ratings; hit 0.91 AUC
+
+education:
+  - school: Your University
+    degree: BS Computer Science
+    grad: 2026-05

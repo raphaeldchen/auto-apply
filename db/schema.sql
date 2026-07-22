@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS companies (
     ats_type    TEXT,
     board_token TEXT,
     status      TEXT    NOT NULL DEFAULT 'active',
+    tier        TEXT    NOT NULL DEFAULT 'standard',
     detected_at TEXT
 );
 

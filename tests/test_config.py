@@ -50,3 +50,34 @@ def test_config_reads_poll_interval(tmp_path):
     p.write_text(yaml.dump(content))
     config = load_config(str(p))
     assert config.schedule.poll_interval_minutes == 30
+
+
+def test_load_config_profile_path_defaults(config_file):
+    config = load_config(config_file)
+    assert config.user.profile_path == "profile.yaml"
+
+def test_load_config_answers_path_defaults(config_file):
+    config = load_config(config_file)
+    assert config.user.answers_path == "answers.yaml"
+
+def test_generation_defaults_when_block_absent(config_file):
+    config = load_config(config_file)
+    assert config.generation.tiers == {
+        "reach": "claude-opus-4-8",
+        "target": "claude-sonnet-5",
+        "standard": "claude-haiku-4-5",
+    }
+
+def test_generation_partial_override_merges_with_defaults(tmp_path, config_file):
+    data = yaml.safe_load(Path(config_file).read_text())
+    data["generation"] = {"tiers": {"standard": "my-local-model"}}
+    p = tmp_path / "override.yaml"
+    p.write_text(yaml.dump(data))
+    config = load_config(str(p))
+    assert config.generation.tiers["standard"] == "my-local-model"
+    assert config.generation.tiers["reach"] == "claude-opus-4-8"
+
+def test_generation_model_for_tier_falls_back_to_standard(config_file):
+    config = load_config(config_file)
+    assert config.generation.model_for("reach") == "claude-opus-4-8"
+    assert config.generation.model_for("unknown-tier") == "claude-haiku-4-5"
