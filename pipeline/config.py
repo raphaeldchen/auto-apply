@@ -7,6 +7,7 @@ class UserConfig:
     desired_level: str
     resume_path: str
     profile_path: str = "profile.yaml"
+    answers_path: str = "answers.yaml"
 
 @dataclass
 class FilterConfig:

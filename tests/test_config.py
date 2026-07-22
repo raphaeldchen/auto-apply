@@ -35,6 +35,10 @@ def test_load_config_profile_path_defaults(config_file):
     config = load_config(config_file)
     assert config.user.profile_path == "profile.yaml"
 
+def test_load_config_answers_path_defaults(config_file):
+    config = load_config(config_file)
+    assert config.user.answers_path == "answers.yaml"
+
 def test_generation_defaults_when_block_absent(config_file):
     config = load_config(config_file)
     assert config.generation.tiers == {

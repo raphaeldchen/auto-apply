@@ -71,6 +71,9 @@ run          →  run_pipeline()
 | `pipeline/materials/verify.py` | Rephrase verifier: numeric multiset invariance, entity whitelist, proper-noun check |
 | `pipeline/materials/rephrase.py` | Anthropic Messages call proposing rephrases; every candidate verified, fail-closed to verbatim |
 | `pipeline/materials/letter.py` | Fact-cited cover-letter generation: verify → one retry with violations fed back → fail closed to no letter |
+| `pipeline/apply/answers.py` | Answer memory (`answers.yaml`): pattern→answer entries, EEO/sensitive question detection |
+| `pipeline/apply/questions.py` | Greenhouse `?questions=true` form-schema fetcher → `FormQuestion` |
+| `pipeline/apply/planner.py` | Questions × memory × profile → fill plan (auto/attachment/answered/sensitive/needs_input); never guesses |
 | `pipeline/notifier.py` | Terminal digest printer |
 | `pipeline/scheduler.py` | APScheduler wrapper for daily runs |
 | `models/` | Plain dataclasses: `Company`, `Job`, `RawJob`, `DigestResult`, `CompanyDigest`, `Profile`/`FactBase` |
@@ -85,3 +88,5 @@ run          →  run_pipeline()
 `filter.llm_score_threshold` controls the cutoff (0–10) for what counts as a match. The LLM model and Ollama base URL are under `llm:`. All filter patterns are case-insensitive substring matches applied to the job title.
 
 `generation.tiers` (optional) maps company tier → Claude model for `tailor --polish`; defaults are reach=`claude-opus-4-8`, target=`claude-sonnet-5`, standard=`claude-haiku-4-5`. Partial overrides merge with defaults. Requires `ANTHROPIC_API_KEY`; without it, polish fails closed to the verbatim resume.
+
+`user.answers_path` (default `answers.yaml`) is the answer memory used by the `questions` command; empty answers are treated as pending and never filled, and EEO/self-identification questions are only answered if the user explicitly stored an entry.

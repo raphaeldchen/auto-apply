@@ -1,11 +1,15 @@
 import asyncio
 import json
+import re
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
 import click
 from urllib.parse import urlparse
+from pipeline.apply.answers import load_answers
+from pipeline.apply.planner import plan_application
+from pipeline.apply.questions import fetch_greenhouse_questions
 from pipeline.config import load_config
 from pipeline.db import init_db, upsert_company, get_all_companies, get_matched_jobs, set_company_tier, get_job, get_company
 from pipeline.materials.coverage import build_coverage
@@ -355,6 +359,58 @@ def letter(job_id, company_id, out):
     click.echo(f"✓ {out} — {len(result.paragraphs)} paragraphs, every claim cited "
                f"({model}, {tier} tier, {result.attempts} attempt(s))")
     click.echo(f"  manifest: {manifest_path}")
+
+
+_PLAN_MARKS = {"auto": "✓", "answered": "✓", "attachment": "•",
+               "sensitive": "⚠", "needs_input": "✗"}
+
+
+@cli.command()
+@click.option("--job-id", required=True, help="ATS job id")
+@click.option("--company-id", type=int, required=True, help="Company id for --job-id")
+def questions(job_id, company_id):
+    """Fetch a job's application-form questions and plan answers from memory."""
+    config = load_config(CONFIG_PATH)
+    profile = load_profile(config.user.profile_path)
+    book = load_answers(config.user.answers_path)
+    conn = init_db(DB_PATH)
+    try:
+        job = get_job(conn, job_id, company_id)
+        company = get_company(conn, company_id)
+    finally:
+        conn.close()
+    if job is None:
+        click.echo(f"No job '{job_id}' for company {company_id}.")
+        return
+    ats = company.ats_type if company else None
+    if ats != "greenhouse":
+        click.echo(f"Question fetch not supported for '{ats}' yet (greenhouse only).")
+        return
+
+    qs = fetch_greenhouse_questions(company.board_token, job_id)
+    if not qs:
+        click.echo("No questions returned for this job.")
+        return
+    plan = plan_application(qs, book, profile)
+
+    click.echo(f"{job.title} @ {company.name} — {len(plan.rows)} questions")
+    for row in plan.rows:
+        detail = ""
+        if row.answer is not None:
+            detail = row.answer + (f"  ({row.source})" if row.source else "")
+        elif row.note:
+            detail = row.note
+        req = "" if row.required else "  [optional]"
+        click.echo(f"  {_PLAN_MARKS[row.status]} {row.label:<44} {detail}{req}")
+
+    stubs = [r for r in plan.rows if r.status == "needs_input" and r.note is None]
+    if stubs:
+        click.echo("\nTeach the bot — paste into answers.yaml under `answers:` "
+                   "and fill in:")
+        for row in stubs:
+            slug = re.sub(r"[^a-z0-9]+", "-", row.label.lower()).strip("-")[:40]
+            pattern = row.label.lower().rstrip("?.! ").replace('"', "")
+            click.echo(f'  - id: {slug}\n    patterns: ["{pattern}"]\n    answer: ""')
 
 
 def _print_coverage_detail(title, description, fact_base):

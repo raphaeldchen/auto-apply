@@ -1,0 +1,41 @@
+# Copy to answers.yaml and fill in. This is your answer memory for recurring
+# application-form questions: the `questions` command matches form questions
+# against `patterns` (case-insensitive substring, first match in file order
+# wins) and shows what would be filled.
+#
+# Rules the planner enforces:
+#   - An empty answer means "known question, still pending" — never filled.
+#   - EEO / self-identification questions (gender, race, veteran status,
+#     disability, ...) are flagged sensitive and left to you, unless you
+#     explicitly add a matching entry here.
+#   - For dropdown questions, your answer must exactly match one of the
+#     form's options or the planner sends it back to you.
+
+answers:
+  - id: work-auth
+    patterns: ["authorized to work", "legally authorized"]
+    answer: "Yes"
+
+  - id: sponsorship
+    patterns: ["require sponsorship", "visa sponsorship", "require visa"]
+    answer: ""   # e.g. "Yes" / "No" — read the question carefully per company
+
+  - id: github
+    patterns: ["github"]
+    answer: "https://github.com/you"
+
+  - id: linkedin
+    patterns: ["linkedin"]
+    answer: "https://linkedin.com/in/you"
+
+  - id: how-heard
+    patterns: ["how did you hear"]
+    answer: "Company careers page"
+
+  - id: start-date
+    patterns: ["start date", "available to start", "availability"]
+    answer: ""
+
+  - id: relocation
+    patterns: ["relocat"]
+    answer: ""

@@ -22,7 +22,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["db", "models", "pipeline", "pipeline.discovery", "pipeline.discovery.clients", "pipeline.filter", "pipeline.materials"]
+packages = ["db", "models", "pipeline", "pipeline.apply", "pipeline.discovery", "pipeline.discovery.clients", "pipeline.filter", "pipeline.materials"]
 
 [tool.setuptools.package-data]
 "pipeline.materials" = ["*.yaml", "templates/*.j2"]

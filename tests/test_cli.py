@@ -25,9 +25,14 @@ experience:
 def analyze_config(tmp_path):
     profile = tmp_path / "profile.yaml"
     profile.write_text(PROFILE_YAML)
+    answers = tmp_path / "answers.yaml"
+    answers.write_text(
+        'answers:\n'
+        '  - {id: work-auth, patterns: ["authorized to work"], answer: "Yes"}\n')
     return Config(
         user=UserConfig(desired_role="DS Intern", desired_level="Intern",
-                        resume_path="./resume.pdf", profile_path=str(profile)),
+                        resume_path="./resume.pdf", profile_path=str(profile),
+                        answers_path=str(answers)),
         filter=FilterConfig(include_patterns=[], exclude_patterns=[],
                             level_patterns=[], llm_score_threshold=7.0),
         llm=LLMConfig(model="llama3.2"),
@@ -394,6 +399,64 @@ def test_letter_job_without_description_errors(
             cli, ["letter", "--job-id", "j1", "--company-id", str(c.id),
                   "--out", str(tmp_path / "l.html")])
     assert "no description" in result.output.lower()
+
+
+def test_questions_prints_plan_and_stubs(cli_db, db_conn, analyze_config):
+    from pipeline.apply.questions import FormQuestion
+
+    c = _seed_job(db_conn, "Python required.")
+    qs = [
+        FormQuestion(label="First Name", name="first_name",
+                     type="input_text", required=True, options=[]),
+        FormQuestion(label="Are you authorized to work in the US?", name="q1",
+                     type="multi_value_single_select", required=True,
+                     options=["Yes", "No"]),
+        FormQuestion(label="What is your gender?", name="q2",
+                     type="input_text", required=False, options=[]),
+        FormQuestion(label="Why do you want to work here?", name="q3",
+                     type="textarea", required=True, options=[]),
+    ]
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config), \
+         patch("main.fetch_greenhouse_questions", return_value=qs) as mock_fq:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["questions", "--job-id", "j1", "--company-id", str(c.id)])
+    assert result.exit_code == 0, result.output
+    mock_fq.assert_called_once_with("stripe", "j1")
+    out = result.output
+    assert "4 questions" in out
+    assert "First Name" in out
+    assert "Yes" in out  # answered from memory
+    assert "sensitive" in out.lower() or "⚠" in out
+    # exactly one stub — for the unknown question only
+    assert out.count("- id:") == 1
+    assert "why-do-you-want-to-work-here" in out
+    assert "answers.yaml" in out
+
+
+def test_questions_unsupported_ats_reports(cli_db, db_conn, analyze_config):
+    c = upsert_company(db_conn, Company(
+        name="Workday Co", slug="wd/Ext", ats_type="workday",
+        board_token="wd/Ext", status="active"))
+    upsert_jobs(db_conn, [Job(id="w1", company_id=c.id, title="ML Intern",
+                              url=None, location=None, description="x")])
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["questions", "--job-id", "w1", "--company-id", str(c.id)])
+    assert "not supported" in result.output.lower()
+    assert "workday" in result.output.lower()
+
+
+def test_questions_unknown_job_errors(cli_db, db_conn, analyze_config):
+    with patch("main.init_db", return_value=cli_db), \
+         patch("main.load_config", return_value=analyze_config):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["questions", "--job-id", "nope", "--company-id", "1"])
+    assert "No job" in result.output
 
 
 def test_tailor_unknown_job_errors(cli_db, db_conn, analyze_config, tmp_path):
